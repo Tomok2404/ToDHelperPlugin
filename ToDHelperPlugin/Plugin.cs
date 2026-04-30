@@ -8,6 +8,7 @@ using ToDHelperPlugin.Windows;
 using ToDHelperPlugin.Data;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
+using Dalamud.Game.Chat;
 
 namespace ToDHelperPlugin;
 
@@ -95,11 +96,15 @@ public sealed class Plugin : IDalamudPlugin
         MainWindow.Toggle();
     }
     
-    private void OnChatMessage(XivChatType type, int timestamp, ref SeString sender, ref SeString message, ref bool isHandled)
+    private void OnChatMessage(IHandleableChatMessage message)
     {
         // Only monitor if Automatic Mode and Round is active
         if (!Configuration.AutomaticMode || !GameState.IsRoundActive)
             return;
+
+        var type = message.LogKind;
+        var sender = message.Sender;
+        var msg = message.Message;
 
         // Mode 0: /random. FFXIV usually sends standard /random rolls as XivChatType.Standard or SystemMessage.
         // Mode 1: /dice. We have to filter by the user's selected channels.
@@ -125,7 +130,7 @@ public sealed class Plugin : IDalamudPlugin
             if (!allowed) return;
         }
 
-        // Logic to extract roll value from 'message.TextValue' and player from 'sender.TextValue' goes here
+        // Logic to extract roll value from 'msg.TextValue' and player from 'sender.TextValue' goes here
         // e.g. GameState.AddRoll(sender.TextValue, parsedRoll);
     }
     

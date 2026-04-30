@@ -1,5 +1,5 @@
 {
-  "Author": "Tim",
+  "Author": "Tomok2404",
   "Name": "ToDHelper",
   "Punchline": "Truth or Dare Helper for FFXIV.",
   "Description": "Helps you manage and host Truth or Dare games.",
@@ -8,5 +8,7 @@
     "tod",
     "minigame",
     "social"
-  ]
+  ],
+  "DalamudApiLevel": 15,
+  "Version": "0.0.0.2"
 }
