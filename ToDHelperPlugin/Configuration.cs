@@ -8,7 +8,7 @@ public class Configuration : IPluginConfiguration
 {
     public int Version { get; set; } = 0;
 
-    public bool AutomaticMode { get; set; } = false;
+    public bool AutomaticMode { get; set; } = true;
     public int TimerMinutes { get; set; } = 1;
     public int TimerSeconds { get; set; } = 30;
 
@@ -20,15 +20,31 @@ public class Configuration : IPluginConfiguration
     public bool WatchFC { get; set; } = true;
     public bool WatchOthers { get; set; } = false;
 
+    public bool EnableBalanceTracking { get; set; } = true;
+    public bool SeparateBalancingTracking { get; set; } = false;
+    public int BalancingCalculationMode { get; set; } = 0; // 0 = Percentage, 1 = Deficit
+    public bool EnableDynamicTags { get; set; } = true;
+
     // Messages Settings
+    public string ChatPrefix { get; set; } = "/p";
+    public int RoundReminderTime { get; set; } = 15;
+
     public bool EnableRoundStartMsg { get; set; } = true;
-    public System.Collections.Generic.List<string> RoundStartMessages { get; set; } = new() { "A new round has started! You have [Timer] to roll!" };
+    public System.Collections.Generic.List<string> RoundStartMessages { get; set; } = new();
 
     public bool EnableRoundReminderMsg { get; set; } = true;
-    public System.Collections.Generic.List<string> RoundReminderMessages { get; set; } = new() { "Hurry up! Only [RemainingTimer] left!" };
+    public System.Collections.Generic.List<string> RoundReminderMessages { get; set; } = new();
 
     public bool EnableRoundClosedMsg { get; set; } = true;
-    public System.Collections.Generic.List<string> RoundClosedMessages { get; set; } = new() { "Round [RoundNumber] closed! Thank you for participating." };
+    public System.Collections.Generic.List<string> RoundClosedMessages { get; set; } = new();
+
+    public bool EnableDiceAnnounceMsg { get; set; } = true;
+    public System.Collections.Generic.List<string> DiceAnnounceMessages { get; set; } = new();
+
+    public bool EnableCustomAnnounceMsg { get; set; } = true;
+    public System.Collections.Generic.List<string> CustomAnnounceMessages { get; set; } = new();
+
+    public System.Collections.Generic.Dictionary<string, Data.PlayerStats> SavedPlayers { get; set; } = new();
 
     // The below exists just to make saving less cumbersome
     public void Save()

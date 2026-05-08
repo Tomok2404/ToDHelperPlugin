@@ -14,7 +14,7 @@ public class ConfigWindow : Window, IDisposable
     // and the window ID will always be "###XYZ counter window" for ImGui
     public ConfigWindow(Plugin plugin) : base("ToD Helper Configuration###ToDHelperConfigWindow")
     {
-        Flags = ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar |
+        Flags = ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar |
                 ImGuiWindowFlags.NoScrollWithMouse;
 
         Size = new Vector2(400, 300);
@@ -99,26 +99,92 @@ public class ConfigWindow : Window, IDisposable
                     if (ImGui.Checkbox("Others (LS/CWLS)", ref wo)) { configuration.WatchOthers = wo; configuration.Save(); }
                 }
 
+                ImGui.Separator();
+                ImGui.Text("Balancing Mode");
+                
+                var balMode = configuration.BalancingCalculationMode;
+                if (ImGui.RadioButton("Percentage (Actions / Rounds)", ref balMode, 0)) { configuration.BalancingCalculationMode = 0; configuration.Save(); }
+                if (ImGui.RadioButton("Deficit (Expected vs Actual)", ref balMode, 1)) { configuration.BalancingCalculationMode = 1; configuration.Save(); }
+
+                ImGui.Spacing();
+                var enableTags = configuration.EnableDynamicTags;
+                if (ImGui.Checkbox("Enable Dynamic Warning Tags", ref enableTags))
+                {
+                    configuration.EnableDynamicTags = enableTags;
+                    configuration.Save();
+                }
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.SetTooltip("Shows colored tags next to player names if their stats are unbalanced (difference >= 2).\n\n" +
+                                     "[Needs Dare] - Received 2+ more Truths than Dares\n" +
+                                     "[Needs Truth] - Received 2+ more Dares than Truths\n" +
+                                     "[Needs to Ask] - Received 2+ more actions than given\n" +
+                                     "[Needs to Answer] - Given 2+ more actions than received");
+                }
+
                 ImGui.EndTabItem();
             }
 
             if (ImGui.BeginTabItem("Messages"))
             {
-                ImGui.Spacing();
-                ImGui.Text("Available Placeholders:");
-                ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[Timer] - Total round time (e.g., 01:30)");
-                ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[RemainingTimer] - Time left (e.g., 00:15)");
-                ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[RoundNumber] - Current round index");
-                ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[TotalRounds] - Total rounds played");
-                ImGui.Separator();
-                ImGui.Spacing();
+                using (var child = Dalamud.Interface.Utility.Raii.ImRaii.Child("MessagesScrollArea", new Vector2(-1, -1), false))
+                {
+                    if (child.Success)
+                    {
+                        ImGui.Spacing();
+                        
+                        var chatPrefix = configuration.ChatPrefix;
+                        ImGui.SetNextItemWidth(150f);
+                        if (ImGui.InputText("Chat Prefix", ref chatPrefix, 50))
+                        {
+                            configuration.ChatPrefix = chatPrefix;
+                            configuration.Save();
+                        }
+                        if (ImGui.IsItemHovered())
+                        {
+                            ImGui.SetTooltip("Prefix added to all automated messages (e.g., /p, /a, /fc, /s)");
+                        }
+                        
+                        ImGui.Separator();
+                        ImGui.Spacing();
 
-                configuration.EnableRoundStartMsg = DrawMessageCategory("Round Start", configuration.EnableRoundStartMsg, configuration.RoundStartMessages);
-                ImGui.Separator();
-                configuration.EnableRoundReminderMsg = DrawMessageCategory("Round Reminder", configuration.EnableRoundReminderMsg, configuration.RoundReminderMessages);
-                ImGui.Separator();
-                configuration.EnableRoundClosedMsg = DrawMessageCategory("Round Closed", configuration.EnableRoundClosedMsg, configuration.RoundClosedMessages);
+                        configuration.EnableRoundStartMsg = DrawMessageCategory("Round Start", configuration.EnableRoundStartMsg, configuration.RoundStartMessages);
+                        ImGui.Separator();
+                        configuration.EnableRoundReminderMsg = DrawMessageCategory("Round Reminder", configuration.EnableRoundReminderMsg, configuration.RoundReminderMessages);
+                        if (configuration.EnableRoundReminderMsg)
+                        {
+                            var reminderTime = configuration.RoundReminderTime;
+                            ImGui.SetNextItemWidth(100f);
+                            if (ImGui.InputInt("Remaining time to trigger reminder (seconds)", ref reminderTime))
+                            {
+                                if (reminderTime < 1) reminderTime = 1;
+                                configuration.RoundReminderTime = reminderTime;
+                                configuration.Save();
+                            }
+                            ImGui.Spacing();
+                        }
+                        ImGui.Separator();
+                        configuration.EnableRoundClosedMsg = DrawMessageCategory("Round Closed", configuration.EnableRoundClosedMsg, configuration.RoundClosedMessages);
+                        ImGui.Separator();
+                        configuration.EnableDiceAnnounceMsg = DrawMessageCategory("Dice Announce", configuration.EnableDiceAnnounceMsg, configuration.DiceAnnounceMessages);
+                        ImGui.Separator();
+                        configuration.EnableCustomAnnounceMsg = DrawMessageCategory("Custom Announce", configuration.EnableCustomAnnounceMsg, configuration.CustomAnnounceMessages);
 
+                        ImGui.Spacing();
+                        ImGui.Separator();
+                        if (ImGui.CollapsingHeader("Available Placeholders"))
+                        {
+                            ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[Timer] - Total round time (e.g., 01:30)");
+                            ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[RemainingTimer] - Time left (e.g., 00:15)");
+                            ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[RoundNumber] - Current round index");
+                            ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[TotalRounds] - Total rounds played");
+                            ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[GiverName] - Dice winner (highest roll)");
+                            ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[ReceiverName] - Dice loser (lowest roll)");
+                            ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[CustomGiverName] - Manually selected giver");
+                            ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[CustomReceiverName] - Manually selected receiver");
+                        }
+                    }
+                }
                 ImGui.EndTabItem();
             }
 

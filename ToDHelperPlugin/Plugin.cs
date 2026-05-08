@@ -22,6 +22,8 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IDataManager DataManager { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
     [PluginService] internal static IChatGui ChatGui { get; private set; } = null!;
+    [PluginService] internal static IObjectTable ObjectTable { get; private set; } = null!;
+    [PluginService] internal static IFramework Framework { get; private set; } = null!;
 
     private const string CommandName1 = "/tod";
     private const string CommandName2 = "/todhelper";
@@ -36,6 +38,19 @@ public sealed class Plugin : IDalamudPlugin
     public Plugin()
     {
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
+        GameState.Players = Configuration.SavedPlayers;
+
+        // Ensure default messages exist if lists are completely empty
+        if (Configuration.RoundStartMessages.Count == 0)
+            Configuration.RoundStartMessages.Add("A new round has started! You have [Timer] to roll!");
+        if (Configuration.RoundReminderMessages.Count == 0)
+            Configuration.RoundReminderMessages.Add("Hurry up! Only [RemainingTimer] left!");
+        if (Configuration.RoundClosedMessages.Count == 0)
+            Configuration.RoundClosedMessages.Add("Round [RoundNumber] closed! Thank you for participating.");
+        if (Configuration.DiceAnnounceMessages.Count == 0)
+            Configuration.DiceAnnounceMessages.Add("The dice have spoken! [GiverName] asks [ReceiverName]!");
+        if (Configuration.CustomAnnounceMessages.Count == 0)
+            Configuration.CustomAnnounceMessages.Add("Get ready! [CustomGiverName] asks [CustomReceiverName]!");
 
         // You might normally want to embed resources and load them from the manifest stream
         var goatImagePath = Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "goat.png");
@@ -71,6 +86,7 @@ public sealed class Plugin : IDalamudPlugin
         Log.Information($"===A cool log message from {PluginInterface.Manifest.Name}===");
         
         ChatGui.ChatMessage += OnChatMessage;
+        Framework.Update += OnUpdate;
     }
 
     public void Dispose()
@@ -88,6 +104,7 @@ public sealed class Plugin : IDalamudPlugin
         CommandManager.RemoveHandler(CommandName2);
         
         ChatGui.ChatMessage -= OnChatMessage;
+        Framework.Update -= OnUpdate;
     }
 
     private void OnCommand(string command, string args)
@@ -130,8 +147,49 @@ public sealed class Plugin : IDalamudPlugin
             if (!allowed) return;
         }
 
-        // Logic to extract roll value from 'msg.TextValue' and player from 'sender.TextValue' goes here
-        // e.g. GameState.AddRoll(sender.TextValue, parsedRoll);
+        // Parse standard roll text like "You roll a 59 (out of 100)." or "Player Name rolls a 59 (out of 100)."
+        // Parse standard roll text like "Random! You roll a 🎲777." or "Random! Player Name rolls a 🎲59."
+        var match = System.Text.RegularExpressions.Regex.Match(msg.TextValue, @"(?:Random!\s+)?(?:(?<name>.+?)\s+rolls?|You roll)\s+a\s+[^\d]*(?<roll>\d+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (match.Success)
+        {
+            string playerName = match.Groups["name"].Success ? match.Groups["name"].Value : ObjectTable[0]?.Name.TextValue ?? "You";
+            if (int.TryParse(match.Groups["roll"].Value, out int parsedRoll))
+            {
+                GameState.AddRoll(playerName, parsedRoll);
+            }
+        }
+    }
+
+    private void OnUpdate(IFramework framework)
+    {
+        if (!GameState.IsRoundActive) return;
+
+        var now = System.DateTime.Now;
+        var remaining = (GameState.RoundEndTime - now).TotalSeconds;
+
+        if (remaining <= 0)
+        {
+            // End Round
+            GameState.EndRound();
+            Configuration.Save();
+            if (Configuration.EnableRoundClosedMsg && Configuration.RoundClosedMessages.Count > 0)
+            {
+                var msg = Configuration.RoundClosedMessages[new System.Random().Next(Configuration.RoundClosedMessages.Count)];
+                msg = msg.Replace("[RoundNumber]", GameState.RoundsPlayed.ToString());
+                ChatSender.SendMessage(Configuration.ChatPrefix.Trim() + " " + msg);
+            }
+        }
+        else if (!GameState.RoundReminderTriggered && remaining <= Configuration.RoundReminderTime)
+        {
+            GameState.RoundReminderTriggered = true;
+            if (Configuration.EnableRoundReminderMsg && Configuration.RoundReminderMessages.Count > 0)
+            {
+                var msg = Configuration.RoundReminderMessages[new System.Random().Next(Configuration.RoundReminderMessages.Count)];
+                msg = msg.Replace("[RemainingTimer]", $"{(int)remaining}s");
+                msg = msg.Replace("[RoundNumber]", GameState.RoundsPlayed.ToString());
+                ChatSender.SendMessage(Configuration.ChatPrefix.Trim() + " " + msg);
+            }
+        }
     }
     
     public void ToggleConfigUi() => ConfigWindow.Toggle();
