@@ -395,6 +395,24 @@ public class MainWindow : Window, IDisposable
                     ImGui.OpenPopup("ResetTrackingConfirm");
                 }
                 
+                ImGui.SameLine();
+                if (ImGui.Button("Export to Clipboard"))
+                {
+                    try
+                    {
+                        var json = System.Text.Json.JsonSerializer.Serialize(this.plugin.GameState.Players);
+                        var base64 = System.Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+                        ImGui.SetClipboardText(base64);
+                    }
+                    catch { }
+                }
+                
+                ImGui.SameLine();
+                if (ImGui.Button("Import from Clipboard"))
+                {
+                    ImGui.OpenPopup("ImportConfirm");
+                }
+                
                 bool popupOpen = true;
                 if (ImGui.BeginPopupModal("ResetTrackingConfirm", ref popupOpen, ImGuiWindowFlags.AlwaysAutoResize))
                 {
@@ -404,6 +422,35 @@ public class MainWindow : Window, IDisposable
                     {
                         this.plugin.GameState.Players.Clear();
                         this.plugin.Configuration.Save();
+                        ImGui.CloseCurrentPopup();
+                    }
+                    ImGui.SameLine();
+                    if (ImGui.Button("No", new Vector2(120, 0)))
+                    {
+                        ImGui.CloseCurrentPopup();
+                    }
+                    ImGui.EndPopup();
+                }
+
+                bool popupImport = true;
+                if (ImGui.BeginPopupModal("ImportConfirm", ref popupImport, ImGuiWindowFlags.AlwaysAutoResize))
+                {
+                    ImGui.Text("Are you sure you want to overwrite current tracking data with the clipboard content?");
+                    ImGui.Separator();
+                    if (ImGui.Button("Yes", new Vector2(120, 0)))
+                    {
+                        try
+                        {
+                            var base64 = ImGui.GetClipboardText();
+                            var json = System.Text.Encoding.UTF8.GetString(System.Convert.FromBase64String(base64));
+                            var imported = System.Text.Json.JsonSerializer.Deserialize<System.Collections.Generic.Dictionary<string, Data.PlayerStats>>(json);
+                            if (imported != null)
+                            {
+                                this.plugin.GameState.Players = imported;
+                                this.plugin.Configuration.Save();
+                            }
+                        }
+                        catch { }
                         ImGui.CloseCurrentPopup();
                     }
                     ImGui.SameLine();
@@ -492,6 +539,33 @@ public class MainWindow : Window, IDisposable
                         
                         ImGui.TableNextColumn(); 
                         ImGui.Text(player.Name);
+                        if (ImGui.IsItemHovered())
+                        {
+                            ImGui.SetTooltip("Right-click to remove");
+                            if (ImGui.IsMouseClicked(ImGuiMouseButton.Right))
+                            {
+                                ImGui.OpenPopup("RemovePlayerConfirm");
+                            }
+                        }
+                        
+                        bool popupRemovePlayer = true;
+                        if (ImGui.BeginPopupModal("RemovePlayerConfirm", ref popupRemovePlayer, ImGuiWindowFlags.AlwaysAutoResize))
+                        {
+                            ImGui.Text($"Are you sure you want to remove {player.Name}?");
+                            ImGui.Separator();
+                            if (ImGui.Button("Yes", new Vector2(120, 0)))
+                            {
+                                this.plugin.GameState.Players.Remove(player.Name);
+                                this.plugin.Configuration.Save();
+                                ImGui.CloseCurrentPopup();
+                            }
+                            ImGui.SameLine();
+                            if (ImGui.Button("No", new Vector2(120, 0)))
+                            {
+                                ImGui.CloseCurrentPopup();
+                            }
+                            ImGui.EndPopup();
+                        }
                         
                         if (this.plugin.Configuration.EnableDynamicTags)
                         {
@@ -519,10 +593,24 @@ public class MainWindow : Window, IDisposable
                         
                         if (separateTracking)
                         {
-                            ImGui.TableNextColumn(); DrawIntCell("TG", player.TruthsGiven, d => { player.TruthsGiven = Math.Max(0, player.TruthsGiven + d); this.plugin.Configuration.Save(); });
-                            ImGui.TableNextColumn(); DrawIntCell("TR", player.TruthsReceived, d => { player.TruthsReceived = Math.Max(0, player.TruthsReceived + d); this.plugin.Configuration.Save(); });
-                            ImGui.TableNextColumn(); DrawIntCell("DG", player.DaresGiven, d => { player.DaresGiven = Math.Max(0, player.DaresGiven + d); this.plugin.Configuration.Save(); });
-                            ImGui.TableNextColumn(); DrawIntCell("DR", player.DaresReceived, d => { player.DaresReceived = Math.Max(0, player.DaresReceived + d); this.plugin.Configuration.Save(); });
+                            uint colorPurple = ImGui.ColorConvertFloat4ToU32(new Vector4(0.6f, 0.2f, 0.8f, 0.25f));
+                            uint colorRed = ImGui.ColorConvertFloat4ToU32(new Vector4(0.8f, 0.2f, 0.2f, 0.25f));
+
+                            ImGui.TableNextColumn(); 
+                            ImGui.TableSetBgColor(ImGuiTableBgTarget.CellBg, colorPurple);
+                            DrawIntCell("TG", player.TruthsGiven, d => { player.TruthsGiven = Math.Max(0, player.TruthsGiven + d); this.plugin.Configuration.Save(); });
+                            
+                            ImGui.TableNextColumn(); 
+                            ImGui.TableSetBgColor(ImGuiTableBgTarget.CellBg, colorPurple);
+                            DrawIntCell("TR", player.TruthsReceived, d => { player.TruthsReceived = Math.Max(0, player.TruthsReceived + d); this.plugin.Configuration.Save(); });
+                            
+                            ImGui.TableNextColumn(); 
+                            ImGui.TableSetBgColor(ImGuiTableBgTarget.CellBg, colorRed);
+                            DrawIntCell("DG", player.DaresGiven, d => { player.DaresGiven = Math.Max(0, player.DaresGiven + d); this.plugin.Configuration.Save(); });
+                            
+                            ImGui.TableNextColumn(); 
+                            ImGui.TableSetBgColor(ImGuiTableBgTarget.CellBg, colorRed);
+                            DrawIntCell("DR", player.DaresReceived, d => { player.DaresReceived = Math.Max(0, player.DaresReceived + d); this.plugin.Configuration.Save(); });
                         }
                         else
                         {
@@ -544,6 +632,18 @@ public class MainWindow : Window, IDisposable
                     }
 
                     ImGui.EndTable();
+
+                    ImGui.Spacing();
+                    float btnWidth = ImGui.CalcTextSize("+1 Round to All").X + 20f;
+                    ImGui.SetCursorPosX(ImGui.GetContentRegionMax().X - btnWidth);
+                    if (ImGui.Button("+1 Round to All"))
+                    {
+                        foreach (var p in this.plugin.GameState.Players.Values)
+                        {
+                            p.RoundsParticipated++;
+                        }
+                        this.plugin.Configuration.Save();
+                    }
                 }
 
                 ImGui.Spacing();
@@ -568,6 +668,41 @@ public class MainWindow : Window, IDisposable
                         }
                     }
                     ImGui.EndCombo();
+                }
+
+                ImGui.SameLine();
+                if (ImGui.Button("Add all players in Vicinity"))
+                {
+                    ImGui.OpenPopup("AddAllVicinityConfirm");
+                }
+
+                bool popupAddAll = true;
+                if (ImGui.BeginPopupModal("AddAllVicinityConfirm", ref popupAddAll, ImGuiWindowFlags.AlwaysAutoResize))
+                {
+                    ImGui.Text("Are you sure you want to add all players in the vicinity?");
+                    ImGui.Separator();
+                    if (ImGui.Button("Yes", new Vector2(120, 0)))
+                    {
+                        foreach (var obj in Plugin.ObjectTable)
+                        {
+                            if (obj != null && obj is Dalamud.Game.ClientState.Objects.SubKinds.IPlayerCharacter)
+                            {
+                                var name = obj.Name.TextValue;
+                                if (!this.plugin.GameState.Players.ContainsKey(name))
+                                {
+                                    this.plugin.GameState.GetOrCreatePlayer(name);
+                                }
+                            }
+                        }
+                        this.plugin.Configuration.Save();
+                        ImGui.CloseCurrentPopup();
+                    }
+                    ImGui.SameLine();
+                    if (ImGui.Button("No", new Vector2(120, 0)))
+                    {
+                        ImGui.CloseCurrentPopup();
+                    }
+                    ImGui.EndPopup();
                 }
 
                 ImGui.Spacing();
