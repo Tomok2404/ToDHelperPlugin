@@ -35,5 +35,10 @@ Use `/tod` or `/todhelper` to open the main interface.
 
 ---
 
+## AI Disclosure / Collaboration Note
+
+> [!NOTE]
+> This plugin was co-authored, coded, and polished with the assistance of agentic AI coding assistants (Google DeepMind's Antigravity). All design aesthetics, features, and robust exception frameworks were developed through collaborative pair programming.
+
 
 
