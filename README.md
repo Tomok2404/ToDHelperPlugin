@@ -1,5 +1,9 @@
 # ToDHelper
 
+> [!WARNING]
+> **ToD Helper** is currently in active testing and development. Features may change, and you might encounter occasional issues. Please report any bugs or feedback to help improve the tool!
+
+
 **ToDHelper** is a Dalamud plugin designed to streamline the hosting of **Truth or Dare** games within FINAL FANTASY XIV. It automates the tedious parts of game management, allowing hosts to focus on the social experience.
 
 ## Features

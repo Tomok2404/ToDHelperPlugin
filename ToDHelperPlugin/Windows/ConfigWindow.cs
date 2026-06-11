@@ -1,5 +1,7 @@
 using System;
 using System.Numerics;
+using System.Collections.Generic;
+using System.Linq;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
 
@@ -7,7 +9,9 @@ namespace ToDHelperPlugin.Windows;
 
 public class ConfigWindow : Window, IDisposable
 {
+    private readonly Plugin plugin;
     private readonly Configuration configuration;
+
 
     // We give this window a constant ID using ###.
     // This allows for labels to be dynamic, like "{FPS Counter}fps###XYZ counter window",
@@ -20,7 +24,8 @@ public class ConfigWindow : Window, IDisposable
         Size = new Vector2(400, 300);
         SizeCondition = ImGuiCond.FirstUseEver;
 
-        configuration = plugin.Configuration;
+        this.plugin = plugin;
+        this.configuration = plugin.Configuration;
     }
 
     public void Dispose() { }
@@ -188,11 +193,7 @@ public class ConfigWindow : Window, IDisposable
                 ImGui.EndTabItem();
             }
 
-            if (ImGui.BeginTabItem("ToD Database"))
-            {
-                ImGui.Text("Manage your Truths and Dares here.");
-                ImGui.EndTabItem();
-            }
+
 
             ImGui.EndTabBar();
         }

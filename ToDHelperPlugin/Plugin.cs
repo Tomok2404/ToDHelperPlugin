@@ -30,6 +30,7 @@ public sealed class Plugin : IDalamudPlugin
 
     public Configuration Configuration { get; init; }
     public GameState GameState { get; init; } = new();
+    public InspirationManager InspirationManager { get; init; }
 
     public readonly WindowSystem WindowSystem = new("ToDHelperPlugin");
     private ConfigWindow ConfigWindow { get; init; }
@@ -39,6 +40,8 @@ public sealed class Plugin : IDalamudPlugin
     {
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         GameState.Players = Configuration.SavedPlayers;
+        GameState.TurnLog = Configuration.SavedTurnLog;
+        InspirationManager = new InspirationManager(PluginInterface.ConfigDirectory.FullName);
 
         // Ensure default messages exist if lists are completely empty
         if (Configuration.RoundStartMessages.Count == 0)

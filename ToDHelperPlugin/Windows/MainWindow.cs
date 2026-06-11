@@ -8,6 +8,7 @@ using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using Lumina.Excel.Sheets;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace ToDHelperPlugin.Windows;
 
@@ -16,6 +17,28 @@ public class MainWindow : Window, IDisposable
     private readonly Plugin plugin;
     private int selectedGiverIndex = -1;
     private int selectedReceiverIndex = -1;
+    private string turnGiverName = string.Empty;
+    private string turnReceiverName = string.Empty;
+    private bool turnIsDare = false;
+    private string rolledInspirationText = string.Empty;
+    private string insTypeFilter = "All";
+    private string insCategoryFilter = "All";
+
+    // Edit Turn state
+    private int editingTurnIndex = -1;
+    private string editGiverName = string.Empty;
+    private string editReceiverName = string.Empty;
+    private bool editIsDare = false;
+    private string playerToRemove = string.Empty;
+
+    // ToD Database state
+    private string searchFilter = string.Empty;
+    private string categoryFilter = "All";
+    private string typeFilter = "All";
+    private string newEntryContent = string.Empty;
+    private int newEntryTypeIndex = 0; // 0 = Truth, 1 = Dare
+    private string newEntryCategory = "General";
+    private Guid? editingEntryId = null;
 
     // We give this window a hidden ID using ##.
     // The user will see "My Amazing Window" as window title,
@@ -57,7 +80,7 @@ public class MainWindow : Window, IDisposable
     {
         if (ImGui.BeginTabBar("ToDMainWindowTabBar"))
         {
-            if (ImGui.BeginTabItem("Host Panel"))
+            if (ImGui.BeginTabItem("Dice Mode"))
             {
                 
                 ImGui.Separator();
@@ -193,6 +216,14 @@ public class MainWindow : Window, IDisposable
                                 var rStats = this.plugin.GameState.GetOrCreatePlayer(receiver);
                                 gStats.TruthsGiven++;
                                 rStats.TruthsReceived++;
+                                
+                                this.plugin.GameState.TurnLog.Add(new Data.RecordedTurn
+                                {
+                                    Giver = giver,
+                                    Receiver = receiver,
+                                    IsDare = false,
+                                    Timestamp = DateTime.Now
+                                });
                                 this.plugin.Configuration.Save();
                             }
                         }
@@ -346,8 +377,16 @@ public class MainWindow : Window, IDisposable
                                 var rStats = this.plugin.GameState.GetOrCreatePlayer(cReceiver);
                                 gStats.TruthsGiven++;
                                 rStats.TruthsReceived++;
-                                this.plugin.Configuration.Save();
                             }
+
+                            this.plugin.GameState.TurnLog.Add(new Data.RecordedTurn
+                            {
+                                Giver = cGiver,
+                                Receiver = cReceiver,
+                                IsDare = false,
+                                Timestamp = DateTime.Now
+                            });
+                            this.plugin.Configuration.Save();
                         }
                     }
 
@@ -362,6 +401,8 @@ public class MainWindow : Window, IDisposable
                 {
                     ImGui.OpenPopup("ResetGameConfirm");
                 }
+                ImGui.SameLine();
+                DrawInspirationButtonAndPopup();
                 
                 bool popupResetGame = true;
                 if (ImGui.BeginPopupModal("ResetGameConfirm", ref popupResetGame, ImGuiWindowFlags.AlwaysAutoResize))
@@ -385,6 +426,351 @@ public class MainWindow : Window, IDisposable
 
                 ImGui.EndTabItem();
             }
+
+            if (ImGui.BeginTabItem("Turns"))
+            {
+                ImGui.Separator();
+
+                // Fetch vicinity players dynamically (available for both recorder and edit popup)
+                var vicinityPlayers = new List<string>();
+                foreach (var obj in Plugin.ObjectTable)
+                {
+                    if (obj != null && obj is Dalamud.Game.ClientState.Objects.SubKinds.IPlayerCharacter)
+                    {
+                        var name = obj.Name.TextValue;
+                        if (!vicinityPlayers.Contains(name))
+                            vicinityPlayers.Add(name);
+                    }
+                }
+                var localPlayer = Plugin.ObjectTable[0]?.Name.TextValue;
+                if (!string.IsNullOrEmpty(localPlayer) && !vicinityPlayers.Contains(localPlayer))
+                {
+                    vicinityPlayers.Add(localPlayer);
+                }
+                vicinityPlayers.Sort();
+
+                bool openEditPopup = false;
+
+                // --- Split View ---
+                if (ImGui.BeginTable("TurnPanelSplit", 2, ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.Resizable))
+                {
+                    ImGui.TableSetupColumn("Left", ImGuiTableColumnFlags.WidthStretch, 0.55f);
+                    ImGui.TableSetupColumn("Right", ImGuiTableColumnFlags.WidthStretch, 0.45f);
+                    ImGui.TableNextRow();
+
+                    // --- Left Column (Turn Log List) ---
+                    ImGui.TableNextColumn();
+                    ImGui.Text("Turn Log (List)");
+                    
+                    ImGui.SameLine();
+                    if (ImGui.Button("Clear Log##turn_mode"))
+                    {
+                        ImGui.OpenPopup("ClearTurnLogConfirm");
+                    }
+                    
+                    bool popupClear = true;
+                    if (ImGui.BeginPopupModal("ClearTurnLogConfirm", ref popupClear, ImGuiWindowFlags.AlwaysAutoResize))
+                    {
+                        ImGui.Text("Are you sure you want to clear the entire turn log?\nThis does NOT reset player statistics, just the log history.");
+                        ImGui.Separator();
+                        if (ImGui.Button("Yes", new Vector2(120, 0)))
+                        {
+                            this.plugin.GameState.TurnLog.Clear();
+                            this.plugin.Configuration.Save();
+                            ImGui.CloseCurrentPopup();
+                        }
+                        ImGui.SameLine();
+                        if (ImGui.Button("No", new Vector2(120, 0)))
+                        {
+                            ImGui.CloseCurrentPopup();
+                        }
+                        ImGui.EndPopup();
+                    }
+
+                    using (var child = ImRaii.Child("TurnLogArea", new Vector2(-1, -45f), true))
+                    {
+                        if (child.Success)
+                        {
+                            var turnLog = this.plugin.GameState.TurnLog;
+                            if (turnLog.Count == 0)
+                            {
+                                ImGui.TextColored(new Vector4(0.5f, 0.5f, 0.5f, 1f), "No turns recorded yet.");
+                            }
+                            else
+                            {
+                                for (int i = 0; i < turnLog.Count; i++)
+                                {
+                                    var turn = turnLog[i];
+                                    ImGui.PushID($"turn_{i}");
+                                    
+                                    string typeStr = turn.IsDare ? "Dare" : "Truth";
+                                    Vector4 typeColor = turn.IsDare ? new Vector4(1f, 0.4f, 0.4f, 1f) : new Vector4(0.4f, 0.8f, 1f, 1f);
+                                    
+                                    ImGui.BeginGroup();
+                                    ImGui.TextColored(new Vector4(0.6f, 0.6f, 0.6f, 1f), $"{i + 1}.");
+                                    ImGui.SameLine();
+                                    ImGui.Text(turn.Giver);
+                                    ImGui.SameLine();
+                                    ImGui.TextColored(new Vector4(0.5f, 1f, 0.5f, 1f), "→");
+                                    ImGui.SameLine();
+                                    if (i == turnLog.Count - 1)
+                                    {
+                                        ImGui.TextColored(new Vector4(1.0f, 0.85f, 0.0f, 1.0f), turn.Receiver);
+                                    }
+                                    else
+                                    {
+                                        ImGui.Text(turn.Receiver);
+                                    }
+                                    
+                                    if (this.plugin.Configuration.SeparateBalancingTracking)
+                                    {
+                                        ImGui.SameLine();
+                                        ImGui.TextColored(typeColor, $"({typeStr})");
+                                    }
+                                    ImGui.EndGroup();
+                                    
+                                    if (ImGui.IsItemHovered())
+                                    {
+                                        ImGui.SetTooltip($"Logged at {turn.Timestamp:HH:mm:ss}\nRight-click to edit");
+                                        if (ImGui.IsMouseClicked(ImGuiMouseButton.Right))
+                                        {
+                                            editingTurnIndex = i;
+                                            editGiverName = turn.Giver;
+                                            editReceiverName = turn.Receiver;
+                                            editIsDare = turn.IsDare;
+                                            openEditPopup = true;
+                                        }
+                                    }
+                                    
+                                    ImGui.PopID();
+                                }
+                            }
+                        }
+                    }
+
+                    // --- Right Column (Turn Recorder & Balancing) ---
+                    ImGui.TableNextColumn();
+                    
+                    ImGui.Text("Record Turn");
+
+                    if (string.IsNullOrEmpty(turnGiverName) && this.plugin.GameState.TurnLog.Count > 0)
+                    {
+                        turnGiverName = this.plugin.GameState.TurnLog.Last().Receiver;
+                    }
+
+                    ImGui.Text("Giver (Who asks):");
+                    ImGui.SetNextItemWidth(-1);
+                    if (ImGui.BeginCombo("##TurnGiverCombo", !string.IsNullOrEmpty(turnGiverName) ? turnGiverName : "Select Giver..."))
+                    {
+                        foreach (var name in vicinityPlayers)
+                        {
+                            if (ImGui.Selectable(name, turnGiverName == name))
+                                turnGiverName = name;
+                        }
+                        ImGui.EndCombo();
+                    }
+
+                    ImGui.Text("Receiver (Who answers):");
+                    ImGui.SetNextItemWidth(-1);
+                    if (ImGui.BeginCombo("##TurnReceiverCombo", !string.IsNullOrEmpty(turnReceiverName) ? turnReceiverName : "Select Receiver..."))
+                    {
+                        foreach (var name in vicinityPlayers)
+                        {
+                            if (ImGui.Selectable(name, turnReceiverName == name))
+                                turnReceiverName = name;
+                        }
+                        ImGui.EndCombo();
+                    }
+
+                    if (this.plugin.Configuration.SeparateBalancingTracking)
+                    {
+                        if (ImGui.RadioButton("Truth##turn_mode", !turnIsDare)) turnIsDare = false;
+                        ImGui.SameLine();
+                        if (ImGui.RadioButton("Dare##turn_mode", turnIsDare)) turnIsDare = true;
+                        ImGui.Spacing();
+                    }
+                    else
+                    {
+                        turnIsDare = false;
+                    }
+                    
+                    bool canRecord = !string.IsNullOrEmpty(turnGiverName) && 
+                                     !string.IsNullOrEmpty(turnReceiverName) && 
+                                     turnGiverName != turnReceiverName;
+
+                    if (!canRecord) ImGui.BeginDisabled();
+                    if (ImGui.Button("Record Turn", new Vector2(-1, 35)))
+                    {
+                        this.plugin.GameState.RecordTurn(turnGiverName, turnReceiverName, turnIsDare);
+                        this.plugin.Configuration.Save();
+                        
+                        // Auto advance
+                        turnGiverName = turnReceiverName;
+                        turnReceiverName = string.Empty;
+                    }
+                    if (!canRecord) ImGui.EndDisabled();
+
+                    ImGui.Spacing();
+                    
+                    bool canUndo = this.plugin.GameState.TurnLog.Count > 0;
+                    if (!canUndo) ImGui.BeginDisabled();
+                    if (ImGui.Button("Undo Last Turn", new Vector2(-1, 35)))
+                    {
+                        this.plugin.GameState.UndoLastTurn();
+                        this.plugin.Configuration.Save();
+                        turnGiverName = string.Empty;
+                        turnReceiverName = string.Empty;
+                    }
+                    if (!canUndo) ImGui.EndDisabled();
+
+                    ImGui.Spacing();
+                    ImGui.Separator();
+                    ImGui.Spacing();
+
+                    // Balancing Summary
+                    ImGui.Text("Balancing Summary");
+                    int pCount = this.plugin.GameState.Players.Count;
+                    float childHeight = 30f;
+                    if (pCount > 0)
+                    {
+                        int lines = 1 + Math.Min(3, pCount);
+                        if (pCount > 3) lines += 2 + Math.Max(0, Math.Min(3, pCount - 3));
+                        childHeight = 10f + lines * ImGui.GetTextLineHeightWithSpacing();
+                    }
+                    
+                    using (var child = ImRaii.Child("TurnBalancingArea", new Vector2(-1, childHeight), true, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse))
+                    {
+                        if (child.Success)
+                        {
+                            var bPlayers = this.plugin.GameState.Players.Values.ToList();
+                            if (bPlayers.Count == 0) {
+                                ImGui.Text("No players tracked yet.");
+                            } else {
+                                bPlayers.Sort((a, b) => {
+                                    float GetScore(Data.PlayerStats p) {
+                                        if (this.plugin.Configuration.BalancingCalculationMode == 0) {
+                                            if (p.RoundsParticipated == 0) return 0f;
+                                            return (p.TotalGiven + p.TotalReceived) / (float)p.RoundsParticipated;
+                                        } else {
+                                            return (p.TotalGiven + p.TotalReceived) - p.ExpectedActions;
+                                        }
+                                    }
+                                    int comp = GetScore(a).CompareTo(GetScore(b));
+                                    if (comp == 0) return b.RoundsParticipated.CompareTo(a.RoundsParticipated);
+                                    return comp;
+                                });
+                                
+                                ImGui.TextColored(new Vector4(0.2f, 1.0f, 0.2f, 1.0f), "Highest Priority:");
+                                for(int i=0; i<Math.Min(3, bPlayers.Count); i++) {
+                                    ImGui.Text($"> {bPlayers[i].Name} ({bPlayers[i].TotalGiven}G / {bPlayers[i].TotalReceived}R)");
+                                }
+                                
+                                if (bPlayers.Count > 3) {
+                                    ImGui.Spacing();
+                                    ImGui.TextColored(new Vector4(1.0f, 0.2f, 0.2f, 1.0f), "Lowest Priority:");
+                                    for(int i=Math.Max(3, bPlayers.Count - 3); i<bPlayers.Count; i++) {
+                                        ImGui.Text($"> {bPlayers[i].Name} ({bPlayers[i].TotalGiven}G / {bPlayers[i].TotalReceived}R)");
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    ImGui.EndTable();
+                }
+
+                if (openEditPopup)
+                {
+                    ImGui.OpenPopup("EditTurnPopup");
+                }
+
+                ImGui.Spacing();
+                ImGui.Separator();
+                ImGui.Spacing();
+
+                DrawInspirationButtonAndPopup();
+
+                // Edit Turn Modal Popup
+                bool editPopupOpen = true;
+                if (ImGui.BeginPopupModal("EditTurnPopup", ref editPopupOpen, ImGuiWindowFlags.AlwaysAutoResize))
+                {
+                    ImGui.Text($"Edit Log Entry #{editingTurnIndex + 1}");
+                    ImGui.Separator();
+
+                    // Generate list of players for dropdowns (including the ones currently stored in the turn)
+                    var editPlayersList = new List<string>(vicinityPlayers);
+                    if (!string.IsNullOrEmpty(editGiverName) && !editPlayersList.Contains(editGiverName))
+                        editPlayersList.Add(editGiverName);
+                    if (!string.IsNullOrEmpty(editReceiverName) && !editPlayersList.Contains(editReceiverName))
+                        editPlayersList.Add(editReceiverName);
+                    editPlayersList.Sort();
+
+                    ImGui.Text("Giver (Who asks):");
+                    ImGui.SetNextItemWidth(250f);
+                    if (ImGui.BeginCombo("##EditGiverCombo", !string.IsNullOrEmpty(editGiverName) ? editGiverName : "Select Giver..."))
+                    {
+                        foreach (var name in editPlayersList)
+                        {
+                            if (ImGui.Selectable(name, editGiverName == name))
+                                editGiverName = name;
+                        }
+                        ImGui.EndCombo();
+                    }
+
+                    ImGui.Text("Receiver (Who answers):");
+                    ImGui.SetNextItemWidth(250f);
+                    if (ImGui.BeginCombo("##EditReceiverCombo", !string.IsNullOrEmpty(editReceiverName) ? editReceiverName : "Select Receiver..."))
+                    {
+                        foreach (var name in editPlayersList)
+                        {
+                            if (ImGui.Selectable(name, editReceiverName == name))
+                                editReceiverName = name;
+                        }
+                        ImGui.EndCombo();
+                    }
+
+                    if (this.plugin.Configuration.SeparateBalancingTracking)
+                    {
+                        ImGui.Spacing();
+                        if (ImGui.RadioButton("Truth##edit_turn", !editIsDare)) editIsDare = false;
+                        ImGui.SameLine();
+                        if (ImGui.RadioButton("Dare##edit_turn", editIsDare)) editIsDare = true;
+                        ImGui.Spacing();
+                    }
+                    else
+                    {
+                        editIsDare = false;
+                    }
+
+                    ImGui.Separator();
+                    ImGui.Spacing();
+
+                    bool editValid = !string.IsNullOrEmpty(editGiverName) && 
+                                     !string.IsNullOrEmpty(editReceiverName) && 
+                                     editGiverName != editReceiverName;
+
+                    if (!editValid) ImGui.BeginDisabled();
+                    if (ImGui.Button("Save Changes", new Vector2(120, 0)))
+                    {
+                        this.plugin.GameState.UpdateRecordedTurn(editingTurnIndex, editGiverName, editReceiverName, editIsDare);
+                        this.plugin.Configuration.Save();
+                        ImGui.CloseCurrentPopup();
+                    }
+                    if (!editValid) ImGui.EndDisabled();
+
+                    ImGui.SameLine();
+                    if (ImGui.Button("Cancel##edit_turn_cancel", new Vector2(120, 0)))
+                    {
+                        ImGui.CloseCurrentPopup();
+                    }
+
+                    ImGui.EndPopup();
+                }
+
+                ImGui.EndTabItem();
+            }
+
+
 
             if (ImGui.BeginTabItem("Balancing"))
             {
@@ -506,6 +892,7 @@ public class MainWindow : Window, IDisposable
                     
                     int totalPlayers = players.Count;
                     int index = 0;
+                    bool openRemovePlayerPopup = false;
 
                     foreach (var player in players)
                     {
@@ -542,27 +929,9 @@ public class MainWindow : Window, IDisposable
                             ImGui.SetTooltip("Right-click to remove");
                             if (ImGui.IsMouseClicked(ImGuiMouseButton.Right))
                             {
-                                ImGui.OpenPopup("RemovePlayerConfirm");
+                                playerToRemove = player.Name;
+                                openRemovePlayerPopup = true;
                             }
-                        }
-                        
-                        bool popupRemovePlayer = true;
-                        if (ImGui.BeginPopupModal("RemovePlayerConfirm", ref popupRemovePlayer, ImGuiWindowFlags.AlwaysAutoResize))
-                        {
-                            ImGui.Text($"Are you sure you want to remove {player.Name}?");
-                            ImGui.Separator();
-                            if (ImGui.Button("Yes", new Vector2(120, 0)))
-                            {
-                                this.plugin.GameState.Players.Remove(player.Name);
-                                this.plugin.Configuration.Save();
-                                ImGui.CloseCurrentPopup();
-                            }
-                            ImGui.SameLine();
-                            if (ImGui.Button("No", new Vector2(120, 0)))
-                            {
-                                ImGui.CloseCurrentPopup();
-                            }
-                            ImGui.EndPopup();
                         }
                         
                         if (this.plugin.Configuration.EnableDynamicTags)
@@ -630,6 +999,11 @@ public class MainWindow : Window, IDisposable
                     }
 
                     ImGui.EndTable();
+
+                    if (openRemovePlayerPopup)
+                    {
+                        ImGui.OpenPopup("RemovePlayerConfirm");
+                    }
 
                     ImGui.Spacing();
                     float btnWidth = ImGui.CalcTextSize("+1 Round to All").X + 20f;
@@ -717,10 +1091,296 @@ public class MainWindow : Window, IDisposable
                     ImGui.SetTooltip("Only for manual tracking");
                 }
 
+                bool popupRemovePlayer = true;
+                if (ImGui.BeginPopupModal("RemovePlayerConfirm", ref popupRemovePlayer, ImGuiWindowFlags.AlwaysAutoResize))
+                {
+                    ImGui.Text($"Are you sure you want to remove {playerToRemove}?");
+                    ImGui.Separator();
+                    if (ImGui.Button("Yes", new Vector2(120, 0)))
+                    {
+                        if (!string.IsNullOrEmpty(playerToRemove))
+                        {
+                            this.plugin.GameState.Players.Remove(playerToRemove);
+                            this.plugin.Configuration.Save();
+                        }
+                        ImGui.CloseCurrentPopup();
+                    }
+                    ImGui.SameLine();
+                    if (ImGui.Button("No", new Vector2(120, 0)))
+                    {
+                        ImGui.CloseCurrentPopup();
+                    }
+                    ImGui.EndPopup();
+                }
+
+                ImGui.EndTabItem();
+            }
+
+            if (ImGui.BeginTabItem("ToD Database"))
+            {
+                var manager = plugin.InspirationManager;
+
+                // Add / Edit Entry form
+                ImGui.Text(editingEntryId.HasValue ? "Edit Entry:" : "Add New Entry:");
+                ImGui.PushItemWidth(ImGui.GetWindowContentRegionMax().X - 100f);
+
+                // Content
+                ImGui.InputText("Content##new_entry_content", ref newEntryContent, 512);
+
+                // Type (Truth/Dare)
+                string[] types = { "Truth", "Dare" };
+                ImGui.SetNextItemWidth(120f);
+                ImGui.Combo("Type##new_entry_type", ref newEntryTypeIndex, types, types.Length);
+
+                ImGui.SameLine();
+                // Category
+                ImGui.SetNextItemWidth(150f);
+                ImGui.InputText("Category##new_entry_cat", ref newEntryCategory, 100);
+
+                ImGui.SameLine();
+                if (ImGui.Button(editingEntryId.HasValue ? "Save##btn" : "Add##btn"))
+                {
+                    if (!string.IsNullOrWhiteSpace(newEntryContent))
+                    {
+                        string entryType = types[newEntryTypeIndex];
+                        string cat = string.IsNullOrWhiteSpace(newEntryCategory) ? "General" : newEntryCategory.Trim();
+
+                        if (editingEntryId.HasValue)
+                        {
+                            manager.UpdateEntry(editingEntryId.Value, newEntryContent.Trim(), entryType, cat);
+                            editingEntryId = null;
+                        }
+                        else
+                        {
+                            manager.AddEntry(newEntryContent.Trim(), entryType, cat);
+                        }
+
+                        newEntryContent = string.Empty;
+                    }
+                }
+
+                if (editingEntryId.HasValue)
+                {
+                    ImGui.SameLine();
+                    if (ImGui.Button("Cancel##btn"))
+                    {
+                        editingEntryId = null;
+                        newEntryContent = string.Empty;
+                    }
+                }
+
+                ImGui.PopItemWidth();
+
+                ImGui.Spacing();
+                ImGui.Separator();
+                ImGui.Spacing();
+
+                // Filters & Search
+                ImGui.Text("Filters & Search:");
+
+                // Search Content
+                ImGui.SetNextItemWidth(150f);
+                ImGui.InputText("Search##db_search", ref searchFilter, 100);
+
+                ImGui.SameLine();
+                // Filter by Type
+                string[] typeFilters = { "All", "Truth", "Dare" };
+                int currentTypeFilterIndex = Array.IndexOf(typeFilters, typeFilter);
+                if (currentTypeFilterIndex < 0) currentTypeFilterIndex = 0;
+                ImGui.SetNextItemWidth(100f);
+                if (ImGui.Combo("Type Filter##db_type_filter", ref currentTypeFilterIndex, typeFilters, typeFilters.Length))
+                {
+                    typeFilter = typeFilters[currentTypeFilterIndex];
+                }
+
+                ImGui.SameLine();
+                // Filter by Category
+                var categories = new List<string> { "All" };
+                categories.AddRange(manager.GetCategories());
+                string[] catFilters = categories.ToArray();
+                int currentCatFilterIndex = Array.IndexOf(catFilters, categoryFilter);
+                if (currentCatFilterIndex < 0) currentCatFilterIndex = 0;
+                ImGui.SetNextItemWidth(120f);
+                if (ImGui.Combo("Category Filter##db_cat_filter", ref currentCatFilterIndex, catFilters, catFilters.Length))
+                {
+                    categoryFilter = catFilters[currentCatFilterIndex];
+                }
+
+                ImGui.Spacing();
+
+                // Entries Table
+                var filtered = manager.Inspirations.Where(e => {
+                    if (!string.IsNullOrEmpty(searchFilter) &&
+                        !e.Content.Contains(searchFilter, StringComparison.OrdinalIgnoreCase) &&
+                        !e.Category.Contains(searchFilter, StringComparison.OrdinalIgnoreCase))
+                        return false;
+
+                    if (typeFilter != "All" && !e.Type.Equals(typeFilter, StringComparison.OrdinalIgnoreCase))
+                        return false;
+
+                    if (categoryFilter != "All" && !e.Category.Equals(categoryFilter, StringComparison.OrdinalIgnoreCase))
+                        return false;
+
+                    return true;
+                }).ToList();
+
+                // Display Table
+                if (ImGui.BeginTable("InspirationsTable", 4, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY, new Vector2(-1, 200)))
+                {
+                    ImGui.TableSetupColumn("Type", ImGuiTableColumnFlags.WidthFixed, 60f);
+                    ImGui.TableSetupColumn("Category", ImGuiTableColumnFlags.WidthFixed, 100f);
+                    ImGui.TableSetupColumn("Content", ImGuiTableColumnFlags.WidthStretch);
+                    ImGui.TableSetupColumn("Actions", ImGuiTableColumnFlags.WidthFixed, 90f);
+                    ImGui.TableHeadersRow();
+
+                    foreach (var entry in filtered)
+                    {
+                        ImGui.PushID(entry.Id.ToString());
+                        ImGui.TableNextRow();
+
+                        ImGui.TableNextColumn();
+                        Vector4 typeCol = entry.Type.Equals("Dare", StringComparison.OrdinalIgnoreCase) ? new Vector4(1f, 0.4f, 0.4f, 1f) : new Vector4(0.4f, 0.8f, 1f, 1f);
+                        ImGui.TextColored(typeCol, entry.Type);
+
+                        ImGui.TableNextColumn();
+                        ImGui.Text(entry.Category);
+
+                        ImGui.TableNextColumn();
+                        ImGui.Text(entry.Content);
+                        if (ImGui.IsItemHovered())
+                        {
+                            ImGui.SetTooltip(entry.Content);
+                        }
+
+                        ImGui.TableNextColumn();
+                        if (ImGui.Button("Edit"))
+                        {
+                            editingEntryId = entry.Id;
+                            newEntryContent = entry.Content;
+                            newEntryTypeIndex = entry.Type.Equals("Dare", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+                            newEntryCategory = entry.Category;
+                        }
+                        ImGui.SameLine();
+                        if (ImGui.Button("Del"))
+                        {
+                            manager.DeleteEntry(entry.Id);
+                            if (editingEntryId == entry.Id)
+                            {
+                                editingEntryId = null;
+                                newEntryContent = string.Empty;
+                            }
+                        }
+
+                        ImGui.PopID();
+                    }
+
+                    ImGui.EndTable();
+                }
+
+                ImGui.Spacing();
+                if (ImGui.Button("Reset to Default Presets"))
+                {
+                    ImGui.OpenPopup("ResetDatabaseConfirm");
+                }
+
+                bool popupReset = true;
+                if (ImGui.BeginPopupModal("ResetDatabaseConfirm", ref popupReset, ImGuiWindowFlags.AlwaysAutoResize))
+                {
+                    ImGui.Text("Are you sure you want to reset the inspiration database?\nThis will overwrite all custom entries and restore defaults.");
+                    ImGui.Separator();
+                    if (ImGui.Button("Yes", new Vector2(120, 0)))
+                    {
+                        manager.ResetToDefaults();
+                        editingEntryId = null;
+                        newEntryContent = string.Empty;
+                        ImGui.CloseCurrentPopup();
+                    }
+                    ImGui.SameLine();
+                    if (ImGui.Button("No", new Vector2(120, 0)))
+                    {
+                        ImGui.CloseCurrentPopup();
+                    }
+                    ImGui.EndPopup();
+                }
+
                 ImGui.EndTabItem();
             }
 
             ImGui.EndTabBar();
+        }
+    }
+
+    private void DrawInspirationButtonAndPopup()
+    {
+        if (ImGui.Button("Get Inspiration"))
+        {
+            ImGui.OpenPopup("InspirationToolPopup");
+        }
+
+        bool openInspiration = true;
+        if (ImGui.BeginPopupModal("InspirationToolPopup", ref openInspiration, ImGuiWindowFlags.AlwaysAutoResize))
+        {
+            var manager = plugin.InspirationManager;
+
+            // Filters
+            string[] types = { "All", "Truth", "Dare" };
+            int typeIdx = Array.IndexOf(types, insTypeFilter);
+            if (typeIdx < 0) typeIdx = 0;
+            ImGui.SetNextItemWidth(100f);
+            if (ImGui.Combo("Type##ins_tool", ref typeIdx, types, types.Length))
+            {
+                insTypeFilter = types[typeIdx];
+            }
+
+            ImGui.SameLine();
+
+            var categories = new List<string> { "All" };
+            categories.AddRange(manager.GetCategories());
+            string[] cats = categories.ToArray();
+            int catIdx = Array.IndexOf(cats, insCategoryFilter);
+            if (catIdx < 0) catIdx = 0;
+            ImGui.SetNextItemWidth(120f);
+            if (ImGui.Combo("Category##ins_tool", ref catIdx, cats, cats.Length))
+            {
+                insCategoryFilter = cats[catIdx];
+            }
+
+            ImGui.Spacing();
+
+            if (ImGui.Button("Roll Inspiration", new Vector2(230, 30)))
+            {
+                var entry = manager.GetRandom(insTypeFilter, insCategoryFilter);
+                rolledInspirationText = entry != null ? entry.Content : "No entries found matching filters.";
+            }
+
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Spacing();
+
+            ImGui.TextWrapped(rolledInspirationText);
+
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Spacing();
+
+            if (ImGui.Button("Copy to Clipboard", new Vector2(120, 0)) && !string.IsNullOrEmpty(rolledInspirationText))
+            {
+                ImGui.SetClipboardText(rolledInspirationText);
+            }
+
+            ImGui.SameLine();
+            if (ImGui.Button("Send to Chat", new Vector2(120, 0)) && !string.IsNullOrEmpty(rolledInspirationText))
+            {
+                ChatSender.SendMessage(this.plugin.Configuration.ChatPrefix.Trim() + " " + rolledInspirationText);
+            }
+
+            ImGui.SameLine();
+            if (ImGui.Button("Close", new Vector2(80, 0)))
+            {
+                ImGui.CloseCurrentPopup();
+            }
+
+            ImGui.EndPopup();
         }
     }
 }

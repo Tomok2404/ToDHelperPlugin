@@ -45,6 +45,7 @@ public class Configuration : IPluginConfiguration
     public System.Collections.Generic.List<string> CustomAnnounceMessages { get; set; } = new();
 
     public System.Collections.Generic.Dictionary<string, Data.PlayerStats> SavedPlayers { get; set; } = new();
+    public System.Collections.Generic.List<Data.RecordedTurn> SavedTurnLog { get; set; } = new();
 
     // The below exists just to make saving less cumbersome
     public void Save()
