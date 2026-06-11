@@ -10,5 +10,6 @@
     "social"
   ],
   "DalamudApiLevel": 15,
-  "Version": "0.0.0.4"
+  "Version": "0.0.0.4",
+  "IconUrl": "https://raw.githubusercontent.com/Tomok2404/TomokPlugins/main/ToDHelperPlugin/icon.png"
 }
