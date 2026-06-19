@@ -1,5 +1,5 @@
 {
-  "Author": "Tomok2404",
+  "Author": "Tomok",
   "Name": "ToDHelper",
   "Punchline": "Truth or Dare Helper for FFXIV.",
   "Description": "Helps you manage and host Truth or Dare games.",
@@ -11,5 +11,5 @@
   ],
   "DalamudApiLevel": 15,
   "Version": "0.0.0.4",
-  "IconUrl": "https://raw.githubusercontent.com/Tomok2404/TomokPlugins/main/ToDHelperPlugin/icon.png"
+  "IconUrl": "https://raw.githubusercontent.com/KaraRemy/TomokPlugins/main/ToDHelperPlugin/icon.png"
 }

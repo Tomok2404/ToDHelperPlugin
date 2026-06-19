@@ -23,7 +23,7 @@ To install **ToD Helper**, you can add the custom plugin repository to Dalamud i
 3. Scroll down to the **Custom Plugin Repositories** section.
 4. Copy and paste the following URL into the empty slot:
    ```
-   https://raw.githubusercontent.com/Tomok2404/TomokPlugins/main/pluginmaster.json
+   https://raw.githubusercontent.com/KaraRemy/TomokPlugins/main/pluginmaster.json
    ```
 5. Click the **+** (Add) button and then click **Save and Close** at the bottom.
 6. Open `/xlplugins` in chat, search for **ToD Helper**, and click **Install**!
