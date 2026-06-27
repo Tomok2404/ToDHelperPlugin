@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.0.5] - 2026-06-27
+
+### Added
+- **Support & Community Tab**: Added a dedicated Support & Community tab in the configuration window featuring direct "Join Support Discord" and "Support on Ko-fi" buttons.
+- **Local Dev Icon Packaging**: Configured project build settings to automatically copy `icon.png` to local output directories (`bin/x64/Debug` and `bin/x64/Release`).
+
+---
+
 ## [0.0.0.4] - 2026-06-11
 
 ### Added
