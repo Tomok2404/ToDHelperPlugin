@@ -193,7 +193,23 @@ public class ConfigWindow : Window, IDisposable
                 ImGui.EndTabItem();
             }
 
-
+            if (ImGui.BeginTabItem("Support & Community"))
+            {
+                ImGui.Spacing();
+                ImGui.TextColored(new Vector4(0.3f, 0.8f, 1f, 1f), "Support & Community");
+                ImGui.Spacing();
+                if (ImGui.Button("Join Support Discord"))
+                {
+                    Dalamud.Utility.Util.OpenLink("https://discord.gg/PvxW4mXaWp");
+                }
+                ImGui.SameLine();
+                if (ImGui.Button("Support on Ko-fi"))
+                {
+                    Dalamud.Utility.Util.OpenLink("https://ko-fi.com/kararemy");
+                }
+                ImGui.Spacing();
+                ImGui.EndTabItem();
+            }
 
             ImGui.EndTabBar();
         }
