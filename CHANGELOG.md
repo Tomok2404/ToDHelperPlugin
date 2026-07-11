@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [0.0.0.8] - 2026-07-11
 
+### Added
+- **Announcement Placeholders**: Added `[GiverRoll]` and `[ReceiverRoll]` (or `[CustomGiverRoll]` / `[CustomReceiverRoll]`) placeholders in both standard and custom selected announcement messages to dynamically output the dice roll numbers of the players.
+- **Avoid Consecutive Turns**: Added a configuration setting `"Avoid Consecutive Turns"` under the Balancing Mode tab to automatically filter out players who just had a turn (giver and receiver of the previous round) from being recommended in the current round, and highlight them with a `(Just played)` suffix and gold color in both the selection dropdowns and the **Players & Rolls** tracking list.
+
 ### Fixed
 - **Local Player Announcement**: Always use the full local player name instead of `"You"` when the hoster wins or loses a roll.
 - **Server Name Visibility**: Hidden/stripped server suffixes (e.g. `@ServerName`) from player names in announcements and vicinity lists.

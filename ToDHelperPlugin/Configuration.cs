@@ -24,6 +24,7 @@ public class Configuration : IPluginConfiguration
     public bool SeparateBalancingTracking { get; set; } = false;
     public int BalancingCalculationMode { get; set; } = 0; // 0 = Percentage, 1 = Deficit
     public bool EnableDynamicTags { get; set; } = true;
+    public bool AvoidConsecutiveTurns { get; set; } = true;
 
     // Messages Settings
     public string ChatPrefix { get; set; } = "/p";

@@ -167,17 +167,30 @@ public class MainWindow : Window, IDisposable
 
                                 foreach (var kvp in sortedRolls)
                                 {
+                                    bool wasInLastTurn = false;
+                                    if (this.plugin.Configuration.AvoidConsecutiveTurns && this.plugin.GameState.TurnLog.Count > 0)
+                                    {
+                                        var lastTurn = this.plugin.GameState.TurnLog.Last();
+                                        wasInLastTurn = (kvp.Key == lastTurn.Giver || kvp.Key == lastTurn.Receiver);
+                                    }
+
+                                    string label = wasInLastTurn ? $"{kvp.Key} (Just played) - {kvp.Value}" : $"{kvp.Key} - {kvp.Value}";
+
                                     if (count >= 2 && kvp.Value == maxRoll)
                                     {
-                                        ImGui.TextColored(new Vector4(0.8f, 0.4f, 1.0f, 1f), $"{kvp.Key} - {kvp.Value}"); // Purple/Magenta
+                                        ImGui.TextColored(new Vector4(0.8f, 0.4f, 1.0f, 1f), label); // Purple/Magenta
                                     }
                                     else if (count >= 2 && kvp.Value == minRoll)
                                     {
-                                        ImGui.TextColored(new Vector4(1.0f, 0.2f, 0.2f, 1f), $"{kvp.Key} - {kvp.Value}"); // Red
+                                        ImGui.TextColored(new Vector4(1.0f, 0.2f, 0.2f, 1f), label); // Red
+                                    }
+                                    else if (wasInLastTurn)
+                                    {
+                                        ImGui.TextColored(new Vector4(1.0f, 0.6f, 0.2f, 1.0f), label); // Gold/orange highlight
                                     }
                                     else
                                     {
-                                        ImGui.Text($"{kvp.Key} - {kvp.Value}");
+                                        ImGui.Text(label);
                                     }
                                 }
                             }
@@ -197,6 +210,8 @@ public class MainWindow : Window, IDisposable
                                 var msg = this.plugin.Configuration.DiceAnnounceMessages[new System.Random().Next(this.plugin.Configuration.DiceAnnounceMessages.Count)];
                                 msg = msg.Replace("[GiverName]", giver);
                                 msg = msg.Replace("[ReceiverName]", receiver);
+                                msg = msg.Replace("[GiverRoll]", sortedRolls.First().Value.ToString());
+                                msg = msg.Replace("[ReceiverRoll]", sortedRolls.Last().Value.ToString());
                                 ChatSender.SendMessage(this.plugin.Configuration.ChatPrefix.Trim() + " " + msg);
                             }
 
@@ -325,8 +340,42 @@ public class MainWindow : Window, IDisposable
                             return comp;
                         });
 
-                        var recommendedGiver = bPlayersForGiver.First().Name;
-                        var recommendedReceiver = bPlayersForReceiver.First(p => p.Name != recommendedGiver).Name;
+                        string? recommendedGiver = null;
+                        string? recommendedReceiver = null;
+
+                        if (this.plugin.Configuration.AvoidConsecutiveTurns && this.plugin.GameState.TurnLog.Count > 0)
+                        {
+                            var lastTurn = this.plugin.GameState.TurnLog.Last();
+                            var lastGiver = lastTurn.Giver;
+                            var lastReceiver = lastTurn.Receiver;
+
+                            // Find a recommended Giver who was not in the last turn
+                            var giverCandidate = bPlayersForGiver.FirstOrDefault(p => p.Name != lastGiver && p.Name != lastReceiver);
+                            if (giverCandidate != null)
+                            {
+                                recommendedGiver = giverCandidate.Name;
+                            }
+
+                            // Find a recommended Receiver who was not in the last turn AND is not the recommended Giver
+                            if (recommendedGiver != null)
+                            {
+                                var receiverCandidate = bPlayersForReceiver.FirstOrDefault(p => p.Name != recommendedGiver && p.Name != lastGiver && p.Name != lastReceiver);
+                                if (receiverCandidate != null)
+                                {
+                                    recommendedReceiver = receiverCandidate.Name;
+                                }
+                            }
+                        }
+
+                        // Fallback if not found or setting disabled
+                        if (recommendedGiver == null)
+                        {
+                            recommendedGiver = bPlayersForGiver.First().Name;
+                        }
+                        if (recommendedReceiver == null)
+                        {
+                            recommendedReceiver = bPlayersForReceiver.First(p => p.Name != recommendedGiver).Name;
+                        }
 
                         selectedGiverIndex = Array.IndexOf(playerArray, recommendedGiver);
                         selectedReceiverIndex = Array.IndexOf(playerArray, recommendedReceiver);
@@ -337,8 +386,29 @@ public class MainWindow : Window, IDisposable
                     {
                         for (int i = 0; i < playerArray.Length; i++)
                         {
-                            if (ImGui.Selectable(playerArray[i], selectedGiverIndex == i))
+                            var name = playerArray[i];
+                            bool wasInLastTurn = false;
+                            if (this.plugin.Configuration.AvoidConsecutiveTurns && this.plugin.GameState.TurnLog.Count > 0)
+                            {
+                                var lastTurn = this.plugin.GameState.TurnLog.Last();
+                                wasInLastTurn = (name == lastTurn.Giver || name == lastTurn.Receiver);
+                            }
+
+                            var displayName = name;
+                            bool shouldHighlight = wasInLastTurn;
+                            if (shouldHighlight)
+                            {
+                                displayName = $"{name} (Just played)";
+                                ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1.0f, 0.6f, 0.2f, 1.0f));
+                            }
+
+                            if (ImGui.Selectable(displayName, selectedGiverIndex == i))
                                 selectedGiverIndex = i;
+
+                            if (shouldHighlight)
+                            {
+                                ImGui.PopStyleColor();
+                            }
                         }
                         ImGui.EndCombo();
                     }
@@ -348,8 +418,29 @@ public class MainWindow : Window, IDisposable
                     {
                         for (int i = 0; i < playerArray.Length; i++)
                         {
-                            if (ImGui.Selectable(playerArray[i], selectedReceiverIndex == i))
+                            var name = playerArray[i];
+                            bool wasInLastTurn = false;
+                            if (this.plugin.Configuration.AvoidConsecutiveTurns && this.plugin.GameState.TurnLog.Count > 0)
+                            {
+                                var lastTurn = this.plugin.GameState.TurnLog.Last();
+                                wasInLastTurn = (name == lastTurn.Giver || name == lastTurn.Receiver);
+                            }
+
+                            var displayName = name;
+                            bool shouldHighlight = wasInLastTurn;
+                            if (shouldHighlight)
+                            {
+                                displayName = $"{name} (Just played)";
+                                ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1.0f, 0.6f, 0.2f, 1.0f));
+                            }
+
+                            if (ImGui.Selectable(displayName, selectedReceiverIndex == i))
                                 selectedReceiverIndex = i;
+
+                            if (shouldHighlight)
+                            {
+                                ImGui.PopStyleColor();
+                            }
                         }
                         ImGui.EndCombo();
                     }
@@ -363,11 +454,20 @@ public class MainWindow : Window, IDisposable
                             string cGiver = playerArray[selectedGiverIndex];
                             string cReceiver = playerArray[selectedReceiverIndex];
 
-                            if (this.plugin.Configuration.EnableCustomAnnounceMsg && this.plugin.Configuration.CustomAnnounceMessages.Count > 0)
+                             if (this.plugin.Configuration.EnableCustomAnnounceMsg && this.plugin.Configuration.CustomAnnounceMessages.Count > 0)
                             {
                                 var msg = this.plugin.Configuration.CustomAnnounceMessages[new System.Random().Next(this.plugin.Configuration.CustomAnnounceMessages.Count)];
                                 msg = msg.Replace("[CustomGiverName]", cGiver);
                                 msg = msg.Replace("[CustomReceiverName]", cReceiver);
+                                
+                                string gRollStr = this.plugin.GameState.CurrentRoundRolls.TryGetValue(cGiver, out int gRoll) ? gRoll.ToString() : "-";
+                                string rRollStr = this.plugin.GameState.CurrentRoundRolls.TryGetValue(cReceiver, out int rRoll) ? rRoll.ToString() : "-";
+                                
+                                msg = msg.Replace("[GiverRoll]", gRollStr);
+                                msg = msg.Replace("[CustomGiverRoll]", gRollStr);
+                                msg = msg.Replace("[ReceiverRoll]", rRollStr);
+                                msg = msg.Replace("[CustomReceiverRoll]", rRollStr);
+
                                 ChatSender.SendMessage(this.plugin.Configuration.ChatPrefix.Trim() + " " + msg);
                             }
 

@@ -127,6 +127,18 @@ public class ConfigWindow : Window, IDisposable
                                      "[Needs to Answer] - Given 2+ more actions than received");
                 }
 
+                ImGui.Spacing();
+                var avoidConsecutive = configuration.AvoidConsecutiveTurns;
+                if (ImGui.Checkbox("Avoid Consecutive Turns", ref avoidConsecutive))
+                {
+                    configuration.AvoidConsecutiveTurns = avoidConsecutive;
+                    configuration.Save();
+                }
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.SetTooltip("Prevents players who just had a turn (last round's Giver/Receiver) from being recommended in the next round, and highlights them in selection lists.");
+                }
+
                 ImGui.EndTabItem();
             }
 
@@ -177,16 +189,20 @@ public class ConfigWindow : Window, IDisposable
 
                         ImGui.Spacing();
                         ImGui.Separator();
-                        if (ImGui.CollapsingHeader("Available Placeholders"))
+                         if (ImGui.CollapsingHeader("Available Placeholders"))
                         {
                             ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[Timer] - Total round time (e.g., 01:30)");
                             ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[RemainingTimer] - Time left (e.g., 00:15)");
                             ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[RoundNumber] - Current round index");
                             ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[TotalRounds] - Total rounds played");
                             ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[GiverName] - Dice winner (highest roll)");
+                            ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[GiverRoll] - Roll number of the dice winner");
                             ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[ReceiverName] - Dice loser (lowest roll)");
+                            ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[ReceiverRoll] - Roll number of the dice loser");
                             ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[CustomGiverName] - Manually selected giver");
+                            ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[CustomGiverRoll] / [GiverRoll] - Roll of manually selected giver");
                             ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[CustomReceiverName] - Manually selected receiver");
+                            ImGui.TextColored(new Vector4(0.5f, 0.8f, 1f, 1f), "[CustomReceiverRoll] / [ReceiverRoll] - Roll of manually selected receiver");
                         }
                     }
                 }
