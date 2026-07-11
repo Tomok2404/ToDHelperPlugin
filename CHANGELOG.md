@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.0.11] - 2026-07-11
+
+### Fixed
+- **Concatenated Server Name Stripping**: Added detection of direct suffix concatenation (e.g. `Hisui AsadaLich` or `Xerina NightfangCerberus`) by checking the end of the name against a compiled list of all FFXIV world servers, stripping it dynamically for UI rendering and chat announcements while preserving the backend database key structure.
+
+---
+
 ## [0.0.0.10] - 2026-07-11
 
 ### Fixed

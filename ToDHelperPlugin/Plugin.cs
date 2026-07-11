@@ -29,6 +29,20 @@ public sealed class Plugin : IDalamudPlugin
     private const string CommandName1 = "/tod";
     private const string CommandName2 = "/todhelper";
 
+    public static readonly System.Collections.Generic.HashSet<string> WorldNames = new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly string[] FallbackWorlds = new string[]
+    {
+        // EU
+        "Cerberus", "Lich", "Odin", "Phoenix", "Shiva", "Twintania", "Zodiark", "Ragnarok", "Louisoix", "Spriggan", "Moogle", "Omega", "Phantom", "Sagittarius", "Alpha", "Raiden",
+        // NA
+        "Adamantoise", "Cactuar", "Gilgamesh", "Midgardsormr", "Siren", "Sargatanas", "Behemoth", "Excalibur", "Lamia", "Ultros", "Leviathan", "Hyperion", "Balmung", "Brynhildr", "Coeurl", "Diabolos", "Goblin", "Malboro", "Mateus", "Zalera", "Halicarnassus", "Maduin", "Marilith", "Seraph",
+        // JP
+        "Alexander", "Bahamut", "Durandal", "Fenrir", "Ifrit", "Ridill", "Tiamat", "Valefor", "Yojimbo", "Zeromus", "Anima", "Asura", "Chocobo", "Hades", "Mandragora", "Masamune", "Shinryu", "Titan", "Belias", "Carbuncle", "Gungnir", "Kujata", "Ramuh", "Tonberry", "Typhon", "Unicorn", "Atomos", "Garuda", "Aegis",
+        // OC
+        "Bismarck", "Ravana", "Sephirot", "Sophia", "Zurvan"
+    };
+
     public Configuration Configuration { get; init; }
     public GameState GameState { get; init; } = new();
     public InspirationManager InspirationManager { get; init; }
@@ -39,6 +53,31 @@ public sealed class Plugin : IDalamudPlugin
 
     public Plugin()
     {
+        // Initialize world names
+        foreach (var w in FallbackWorlds)
+        {
+            WorldNames.Add(w);
+        }
+        try
+        {
+            var worldSheet = DataManager.GetExcelSheet<Lumina.Excel.Sheets.World>();
+            if (worldSheet != null)
+            {
+                foreach (var world in worldSheet)
+                {
+                    var name = world.Name.ToString();
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        WorldNames.Add(name);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to load world names from DataManager");
+        }
+
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 
         // Normalize any player names in SavedPlayers that contain server suffixes
@@ -241,6 +280,8 @@ public sealed class Plugin : IDalamudPlugin
     public static string CleanServerName(string fullName)
     {
         if (string.IsNullOrEmpty(fullName)) return string.Empty;
+
+        // 1. Split by standard separators
         char[] separators = new char[] { '@', '¤', '(', '[', '<' };
         var clean = fullName;
         foreach (var sep in separators)
@@ -250,6 +291,21 @@ public sealed class Plugin : IDalamudPlugin
                 clean = clean.Split(sep)[0].Trim();
             }
         }
+
+        // 2. Check if it ends with a valid world name directly concatenated
+        foreach (var world in WorldNames)
+        {
+            if (clean.EndsWith(world, StringComparison.OrdinalIgnoreCase))
+            {
+                var potentialName = clean.Substring(0, clean.Length - world.Length).Trim();
+                if (potentialName.Contains(" "))
+                {
+                    clean = potentialName;
+                    break;
+                }
+            }
+        }
+
         return clean;
     }
 
@@ -267,6 +323,19 @@ public sealed class Plugin : IDalamudPlugin
                 var name = parts[0].Trim();
                 var world = parts[1].Replace(")", "").Replace("]", "").Replace(">", "").Trim();
                 return $"{name}@{world}";
+            }
+        }
+
+        // Check if it ends with a valid world name directly concatenated
+        foreach (var world in WorldNames)
+        {
+            if (fullName.EndsWith(world, StringComparison.OrdinalIgnoreCase))
+            {
+                var potentialName = fullName.Substring(0, fullName.Length - world.Length).Trim();
+                if (potentialName.Contains(" "))
+                {
+                    return $"{potentialName}@{world}";
+                }
             }
         }
 
