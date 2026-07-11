@@ -1,6 +1,7 @@
 using Dalamud.Game.Command;
 using Dalamud.IoC;
 using Dalamud.Plugin;
+using System;
 using System.IO;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
@@ -152,7 +153,36 @@ public sealed class Plugin : IDalamudPlugin
         var match = System.Text.RegularExpressions.Regex.Match(msg.TextValue, @"(?:Random!\s+)?(?:(?<name>.+?)\s+rolls?|You roll)\s+a\s+[^\d]*(?<roll>\d+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         if (match.Success)
         {
-            string playerName = match.Groups["name"].Success ? match.Groups["name"].Value : ObjectTable[0]?.Name.TextValue ?? "You";
+            string playerName;
+            if (match.Groups["name"].Success)
+            {
+                playerName = match.Groups["name"].Value;
+            }
+            else
+            {
+                playerName = ObjectTable.LocalPlayer?.Name.TextValue ?? ObjectTable[0]?.Name.TextValue ?? "You";
+            }
+
+            // Hide the server behind the name if present (e.g. "Player Name@Server" -> "Player Name")
+            if (playerName.Contains("@"))
+            {
+                playerName = playerName.Split('@')[0];
+            }
+
+            // Fallback: If playerName resolved to "You", try to get the local player's actual name
+            if (playerName.Equals("You", StringComparison.OrdinalIgnoreCase))
+            {
+                var localName = ObjectTable.LocalPlayer?.Name.TextValue ?? ObjectTable[0]?.Name.TextValue;
+                if (!string.IsNullOrEmpty(localName))
+                {
+                    playerName = localName;
+                    if (playerName.Contains("@"))
+                    {
+                        playerName = playerName.Split('@')[0];
+                    }
+                }
+            }
+
             if (int.TryParse(match.Groups["roll"].Value, out int parsedRoll))
             {
                 GameState.AddRoll(playerName, parsedRoll);

@@ -1032,6 +1032,10 @@ public class MainWindow : Window, IDisposable
                         if (obj != null && obj is Dalamud.Game.ClientState.Objects.SubKinds.IPlayerCharacter)
                         {
                             var name = obj.Name.TextValue;
+                            if (name.Contains("@"))
+                            {
+                                name = name.Split('@')[0];
+                            }
                             if (!this.plugin.GameState.Players.ContainsKey(name) && ImGui.Selectable(name))
                             {
                                 this.plugin.GameState.GetOrCreatePlayer(name);
@@ -1060,6 +1064,10 @@ public class MainWindow : Window, IDisposable
                             if (obj != null && obj is Dalamud.Game.ClientState.Objects.SubKinds.IPlayerCharacter)
                             {
                                 var name = obj.Name.TextValue;
+                                if (name.Contains("@"))
+                                {
+                                    name = name.Split('@')[0];
+                                }
                                 if (!this.plugin.GameState.Players.ContainsKey(name))
                                 {
                                     this.plugin.GameState.GetOrCreatePlayer(name);

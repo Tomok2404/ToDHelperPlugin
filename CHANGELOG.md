@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.0.8] - 2026-07-11
+
+### Fixed
+- **Local Player Announcement**: Always use the full local player name instead of `"You"` when the hoster wins or loses a roll.
+- **Server Name Visibility**: Hidden/stripped server suffixes (e.g. `@ServerName`) from player names in announcements and vicinity lists.
+
+---
+
 ## [0.0.0.5] - 2026-06-27
 
 ### Added
