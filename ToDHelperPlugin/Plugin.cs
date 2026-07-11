@@ -267,7 +267,7 @@ public sealed class Plugin : IDalamudPlugin
             if (Configuration.EnableRoundReminderMsg && Configuration.RoundReminderMessages.Count > 0)
             {
                 var msg = Configuration.RoundReminderMessages[new System.Random().Next(Configuration.RoundReminderMessages.Count)];
-                msg = msg.Replace("[RemainingTimer]", $"{(int)remaining}s");
+                msg = msg.Replace("[RemainingTimer]", $"{(int)Math.Ceiling(remaining)}s");
                 msg = msg.Replace("[RoundNumber]", GameState.RoundsPlayed.ToString());
                 ChatSender.SendMessage(Configuration.ChatPrefix.Trim() + " " + msg);
             }
@@ -322,6 +322,20 @@ public sealed class Plugin : IDalamudPlugin
                 var parts = fullName.Split(sep);
                 var name = parts[0].Trim();
                 var world = parts[1].Replace(")", "").Replace("]", "").Replace(">", "").Trim();
+
+                // Clean concatenated server suffix from name if present
+                foreach (var w in WorldNames)
+                {
+                    if (name.EndsWith(w, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var potential = name.Substring(0, name.Length - w.Length).Trim();
+                        if (potential.Contains(" "))
+                        {
+                            name = potential;
+                            break;
+                        }
+                    }
+                }
                 return $"{name}@{world}";
             }
         }

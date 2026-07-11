@@ -27,7 +27,11 @@ public class GameState
     public bool IsAutomaticMode { get; set; } = false;
     public bool IsPrivateMode { get; set; } = false; // Only watch specific chat
     
-    public int RoundsPlayed { get; set; } = 0;
+    public int RoundsPlayed
+    {
+        get => TurnLog.Count + (IsRoundActive ? 1 : 0);
+        set { }
+    }
     
     // Player Database
     public Dictionary<string, PlayerStats> Players { get; set; } = new();
@@ -71,7 +75,6 @@ public class GameState
         IsRoundActive = true;
         RoundBalanced = false;
         NeedsAutoSelection = false;
-        RoundsPlayed++;
         TotalDurationSeconds = durationSeconds;
         RoundReminderTriggered = false;
         RoundEndTime = DateTime.Now.AddSeconds(durationSeconds);

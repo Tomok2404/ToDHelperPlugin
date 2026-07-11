@@ -95,7 +95,7 @@ public class MainWindow : Window, IDisposable
                 if (this.plugin.GameState.IsRoundActive)
                 {
                     var remaining = (this.plugin.GameState.RoundEndTime - System.DateTime.Now).TotalSeconds;
-                    displaySeconds = remaining > 0 ? (int)remaining : 0;
+                    displaySeconds = remaining > 0 ? (int)Math.Ceiling(remaining) : 0;
                 }
                 
                 ImGui.SameLine(ImGui.GetWindowWidth() - 130);
@@ -146,7 +146,9 @@ public class MainWindow : Window, IDisposable
                     // --- Left Column (Players & Rolls) ---
                     ImGui.TableNextColumn();
                     ImGui.Text("Players & Rolls");
-                    using (var child = ImRaii.Child("DiceRollsArea", new Vector2(-1, 200), true))
+                    float leftChildHeight = ImGui.GetContentRegionAvail().Y - ImGui.GetFrameHeightWithSpacing() - 5f;
+                    if (leftChildHeight < 200f) leftChildHeight = 200f;
+                    using (var child = ImRaii.Child("DiceRollsArea", new Vector2(-1, leftChildHeight), true))
                     {
                         if (child.Success)
                         {
