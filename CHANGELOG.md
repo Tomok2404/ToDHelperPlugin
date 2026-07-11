@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.0.9] - 2026-07-11
+
+### Added
+- **Exclude Consecutive Players from Dice Announcement**: Added a configuration setting under the Balancing Mode tab to prevent players who just had a turn (last round's Giver and Receiver) from being chosen in the automatic standard Dice Announcement. It will pick the next highest/lowest rolls instead, falling back gracefully if not enough clean players are present.
+
+---
+
 ## [0.0.0.8] - 2026-07-11
 
 ### Added

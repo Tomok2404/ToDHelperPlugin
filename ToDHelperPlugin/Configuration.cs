@@ -25,6 +25,7 @@ public class Configuration : IPluginConfiguration
     public int BalancingCalculationMode { get; set; } = 0; // 0 = Percentage, 1 = Deficit
     public bool EnableDynamicTags { get; set; } = true;
     public bool AvoidConsecutiveTurns { get; set; } = true;
+    public bool ExcludeConsecutiveFromAnnounce { get; set; } = true;
 
     // Messages Settings
     public string ChatPrefix { get; set; } = "/p";

@@ -204,14 +204,50 @@ public class MainWindow : Window, IDisposable
                         {
                             var giver = sortedRolls.First().Key;
                             var receiver = sortedRolls.Last().Key;
+                            int giverRoll = sortedRolls.First().Value;
+                            int receiverRoll = sortedRolls.Last().Value;
+
+                            if (this.plugin.Configuration.ExcludeConsecutiveFromAnnounce && this.plugin.GameState.TurnLog.Count > 0)
+                            {
+                                var lastTurn = this.plugin.GameState.TurnLog.Last();
+                                var lastGiver = lastTurn.Giver;
+                                var lastReceiver = lastTurn.Receiver;
+
+                                var giverCandidate = sortedRolls.FirstOrDefault(r => r.Key != lastGiver && r.Key != lastReceiver);
+                                var receiverCandidate = sortedRolls.LastOrDefault(r => r.Key != lastGiver && r.Key != lastReceiver && (giverCandidate.Key == null || r.Key != giverCandidate.Key));
+
+                                if (giverCandidate.Key != null && receiverCandidate.Key != null)
+                                {
+                                    giver = giverCandidate.Key;
+                                    giverRoll = giverCandidate.Value;
+                                    receiver = receiverCandidate.Key;
+                                    receiverRoll = receiverCandidate.Value;
+                                }
+                                else if (giverCandidate.Key != null)
+                                {
+                                    giver = giverCandidate.Key;
+                                    giverRoll = giverCandidate.Value;
+                                    var fallbackReceiver = sortedRolls.Last(r => r.Key != giver);
+                                    receiver = fallbackReceiver.Key;
+                                    receiverRoll = fallbackReceiver.Value;
+                                }
+                                else if (receiverCandidate.Key != null)
+                                {
+                                    receiver = receiverCandidate.Key;
+                                    receiverRoll = receiverCandidate.Value;
+                                    var fallbackGiver = sortedRolls.First(r => r.Key != receiver);
+                                    giver = fallbackGiver.Key;
+                                    giverRoll = fallbackGiver.Value;
+                                }
+                            }
 
                             if (this.plugin.Configuration.EnableDiceAnnounceMsg && this.plugin.Configuration.DiceAnnounceMessages.Count > 0)
                             {
                                 var msg = this.plugin.Configuration.DiceAnnounceMessages[new System.Random().Next(this.plugin.Configuration.DiceAnnounceMessages.Count)];
                                 msg = msg.Replace("[GiverName]", giver);
                                 msg = msg.Replace("[ReceiverName]", receiver);
-                                msg = msg.Replace("[GiverRoll]", sortedRolls.First().Value.ToString());
-                                msg = msg.Replace("[ReceiverRoll]", sortedRolls.Last().Value.ToString());
+                                msg = msg.Replace("[GiverRoll]", giverRoll.ToString());
+                                msg = msg.Replace("[ReceiverRoll]", receiverRoll.ToString());
                                 ChatSender.SendMessage(this.plugin.Configuration.ChatPrefix.Trim() + " " + msg);
                             }
 

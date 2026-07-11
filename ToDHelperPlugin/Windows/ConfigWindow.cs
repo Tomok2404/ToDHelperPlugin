@@ -139,6 +139,18 @@ public class ConfigWindow : Window, IDisposable
                     ImGui.SetTooltip("Prevents players who just had a turn (last round's Giver/Receiver) from being recommended in the next round, and highlights them in selection lists.");
                 }
 
+                ImGui.Spacing();
+                var excludeConsecutiveAnnounce = configuration.ExcludeConsecutiveFromAnnounce;
+                if (ImGui.Checkbox("Exclude Consecutive Players from Dice Announcement", ref excludeConsecutiveAnnounce))
+                {
+                    configuration.ExcludeConsecutiveFromAnnounce = excludeConsecutiveAnnounce;
+                    configuration.Save();
+                }
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.SetTooltip("Prevents players who just had a turn (last round's Giver/Receiver) from being chosen in the automatic Dice Announcement, picking the next highest/lowest rolls instead.");
+                }
+
                 ImGui.EndTabItem();
             }
 
