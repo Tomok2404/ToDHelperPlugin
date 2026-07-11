@@ -41,36 +41,21 @@ public sealed class Plugin : IDalamudPlugin
     {
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 
-        // Migrate any player names in SavedPlayers that contain server suffixes
+        // Normalize any player names in SavedPlayers that contain server suffixes
         var migratedPlayers = new System.Collections.Generic.Dictionary<string, Data.PlayerStats>();
-        char[] separators = new char[] { '@', '¤', '(', '[', '<' };
         foreach (var kvp in Configuration.SavedPlayers)
         {
-            var cleanKey = kvp.Key;
-            foreach (var sep in separators)
-            {
-                if (cleanKey.Contains(sep))
-                {
-                    cleanKey = cleanKey.Split(sep)[0].Trim();
-                }
-            }
-            kvp.Value.Name = cleanKey;
-            migratedPlayers[cleanKey] = kvp.Value;
+            var normalizedKey = NormalizePlayerName(kvp.Key, "");
+            kvp.Value.Name = normalizedKey;
+            migratedPlayers[normalizedKey] = kvp.Value;
         }
         Configuration.SavedPlayers = migratedPlayers;
         GameState.Players = Configuration.SavedPlayers;
 
         foreach (var turn in Configuration.SavedTurnLog)
         {
-            var cleanGiver = turn.Giver;
-            var cleanReceiver = turn.Receiver;
-            foreach (var sep in separators)
-            {
-                if (cleanGiver.Contains(sep)) cleanGiver = cleanGiver.Split(sep)[0].Trim();
-                if (cleanReceiver.Contains(sep)) cleanReceiver = cleanReceiver.Split(sep)[0].Trim();
-            }
-            turn.Giver = cleanGiver;
-            turn.Receiver = cleanReceiver;
+            turn.Giver = NormalizePlayerName(turn.Giver, "");
+            turn.Receiver = NormalizePlayerName(turn.Receiver, "");
         }
         GameState.TurnLog = Configuration.SavedTurnLog;
         InspirationManager = new InspirationManager(PluginInterface.ConfigDirectory.FullName);
@@ -184,6 +169,11 @@ public sealed class Plugin : IDalamudPlugin
         var match = System.Text.RegularExpressions.Regex.Match(msg.TextValue, @"(?:Random!\s+)?(?:(?<name>.+?)\s+rolls?|You roll)\s+a\s+[^\d]*(?<roll>\d+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         if (match.Success)
         {
+            string localWorld = "";
+            if (ObjectTable.LocalPlayer != null)
+            {
+                localWorld = ObjectTable.LocalPlayer.HomeWorld.Value.Name.ToString();
+            }
             string playerName;
             if (match.Groups["name"].Success)
             {
@@ -194,16 +184,6 @@ public sealed class Plugin : IDalamudPlugin
                 playerName = ObjectTable.LocalPlayer?.Name.TextValue ?? ObjectTable[0]?.Name.TextValue ?? "You";
             }
 
-            // Hide the server behind the name if present (e.g. "Player Name@Server" or "Player Name¤Server")
-            char[] separators = new char[] { '@', '¤', '(', '[', '<' };
-            foreach (var sep in separators)
-            {
-                if (playerName.Contains(sep))
-                {
-                    playerName = playerName.Split(sep)[0].Trim();
-                }
-            }
-
             // Fallback: If playerName resolved to "You", try to get the local player's actual name
             if (playerName.Equals("You", StringComparison.OrdinalIgnoreCase))
             {
@@ -211,15 +191,10 @@ public sealed class Plugin : IDalamudPlugin
                 if (!string.IsNullOrEmpty(localName))
                 {
                     playerName = localName;
-                    foreach (var sep in separators)
-                    {
-                        if (playerName.Contains(sep))
-                        {
-                            playerName = playerName.Split(sep)[0].Trim();
-                        }
-                    }
                 }
             }
+
+            playerName = NormalizePlayerName(playerName, localWorld);
 
             if (int.TryParse(match.Groups["roll"].Value, out int parsedRoll))
             {
@@ -262,4 +237,43 @@ public sealed class Plugin : IDalamudPlugin
     
     public void ToggleConfigUi() => ConfigWindow.Toggle();
     public void ToggleMainUi() => MainWindow.Toggle();
+
+    public static string CleanServerName(string fullName)
+    {
+        if (string.IsNullOrEmpty(fullName)) return string.Empty;
+        char[] separators = new char[] { '@', '¤', '(', '[', '<' };
+        var clean = fullName;
+        foreach (var sep in separators)
+        {
+            if (clean.Contains(sep))
+            {
+                clean = clean.Split(sep)[0].Trim();
+            }
+        }
+        return clean;
+    }
+
+    public static string NormalizePlayerName(string fullName, string defaultWorld)
+    {
+        if (string.IsNullOrEmpty(fullName)) return string.Empty;
+        if (fullName.Equals("You", StringComparison.OrdinalIgnoreCase)) return fullName;
+
+        char[] separators = new char[] { '@', '¤', '(', '[', '<' };
+        foreach (var sep in separators)
+        {
+            if (fullName.Contains(sep))
+            {
+                var parts = fullName.Split(sep);
+                var name = parts[0].Trim();
+                var world = parts[1].Replace(")", "").Replace("]", "").Replace(">", "").Trim();
+                return $"{name}@{world}";
+            }
+        }
+
+        if (!string.IsNullOrEmpty(defaultWorld))
+        {
+            return $"{fullName}@{defaultWorld}";
+        }
+        return fullName;
+    }
 }

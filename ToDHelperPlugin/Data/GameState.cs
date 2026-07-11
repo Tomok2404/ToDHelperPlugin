@@ -44,6 +44,7 @@ public class GameState
 
     public PlayerStats GetOrCreatePlayer(string name)
     {
+        name = Plugin.NormalizePlayerName(name, "");
         if (!Players.TryGetValue(name, out var stats))
         {
             stats = new PlayerStats { Name = name };

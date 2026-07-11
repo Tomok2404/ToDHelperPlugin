@@ -174,7 +174,8 @@ public class MainWindow : Window, IDisposable
                                         wasInLastTurn = (kvp.Key == lastTurn.Giver || kvp.Key == lastTurn.Receiver);
                                     }
 
-                                    string label = wasInLastTurn ? $"{kvp.Key} (Just played) - {kvp.Value}" : $"{kvp.Key} - {kvp.Value}";
+                                    var cleanName = Plugin.CleanServerName(kvp.Key);
+                                    string label = wasInLastTurn ? $"{cleanName} (Just played) - {kvp.Value}" : $"{cleanName} - {kvp.Value}";
 
                                     if (count >= 2 && kvp.Value == maxRoll)
                                     {
@@ -244,8 +245,8 @@ public class MainWindow : Window, IDisposable
                             if (this.plugin.Configuration.EnableDiceAnnounceMsg && this.plugin.Configuration.DiceAnnounceMessages.Count > 0)
                             {
                                 var msg = this.plugin.Configuration.DiceAnnounceMessages[new System.Random().Next(this.plugin.Configuration.DiceAnnounceMessages.Count)];
-                                msg = msg.Replace("[GiverName]", giver);
-                                msg = msg.Replace("[ReceiverName]", receiver);
+                                msg = msg.Replace("[GiverName]", Plugin.CleanServerName(giver));
+                                msg = msg.Replace("[ReceiverName]", Plugin.CleanServerName(receiver));
                                 msg = msg.Replace("[GiverRoll]", giverRoll.ToString());
                                 msg = msg.Replace("[ReceiverRoll]", receiverRoll.ToString());
                                 ChatSender.SendMessage(this.plugin.Configuration.ChatPrefix.Trim() + " " + msg);
@@ -418,7 +419,7 @@ public class MainWindow : Window, IDisposable
                     }
                     
                     ImGui.Text("Recommended Giver:");
-                    if (ImGui.BeginCombo("##GiverCombo", selectedGiverIndex >= 0 && selectedGiverIndex < playerArray.Length ? playerArray[selectedGiverIndex] : "Select Giver..."))
+                    if (ImGui.BeginCombo("##GiverCombo", selectedGiverIndex >= 0 && selectedGiverIndex < playerArray.Length ? Plugin.CleanServerName(playerArray[selectedGiverIndex]) : "Select Giver..."))
                     {
                         for (int i = 0; i < playerArray.Length; i++)
                         {
@@ -430,11 +431,11 @@ public class MainWindow : Window, IDisposable
                                 wasInLastTurn = (name == lastTurn.Giver || name == lastTurn.Receiver);
                             }
 
-                            var displayName = name;
+                            var displayName = Plugin.CleanServerName(name);
                             bool shouldHighlight = wasInLastTurn;
                             if (shouldHighlight)
                             {
-                                displayName = $"{name} (Just played)";
+                                displayName = $"{displayName} (Just played)";
                                 ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1.0f, 0.6f, 0.2f, 1.0f));
                             }
 
@@ -450,7 +451,7 @@ public class MainWindow : Window, IDisposable
                     }
                     
                     ImGui.Text("Recommended Receiver:");
-                    if (ImGui.BeginCombo("##ReceiverCombo", selectedReceiverIndex >= 0 && selectedReceiverIndex < playerArray.Length ? playerArray[selectedReceiverIndex] : "Select Receiver..."))
+                    if (ImGui.BeginCombo("##ReceiverCombo", selectedReceiverIndex >= 0 && selectedReceiverIndex < playerArray.Length ? Plugin.CleanServerName(playerArray[selectedReceiverIndex]) : "Select Receiver..."))
                     {
                         for (int i = 0; i < playerArray.Length; i++)
                         {
@@ -462,11 +463,11 @@ public class MainWindow : Window, IDisposable
                                 wasInLastTurn = (name == lastTurn.Giver || name == lastTurn.Receiver);
                             }
 
-                            var displayName = name;
+                            var displayName = Plugin.CleanServerName(name);
                             bool shouldHighlight = wasInLastTurn;
                             if (shouldHighlight)
                             {
-                                displayName = $"{name} (Just played)";
+                                displayName = $"{displayName} (Just played)";
                                 ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1.0f, 0.6f, 0.2f, 1.0f));
                             }
 
@@ -493,8 +494,8 @@ public class MainWindow : Window, IDisposable
                              if (this.plugin.Configuration.EnableCustomAnnounceMsg && this.plugin.Configuration.CustomAnnounceMessages.Count > 0)
                             {
                                 var msg = this.plugin.Configuration.CustomAnnounceMessages[new System.Random().Next(this.plugin.Configuration.CustomAnnounceMessages.Count)];
-                                msg = msg.Replace("[CustomGiverName]", cGiver);
-                                msg = msg.Replace("[CustomReceiverName]", cReceiver);
+                                msg = msg.Replace("[CustomGiverName]", Plugin.CleanServerName(cGiver));
+                                msg = msg.Replace("[CustomReceiverName]", Plugin.CleanServerName(cReceiver));
                                 
                                 string gRollStr = this.plugin.GameState.CurrentRoundRolls.TryGetValue(cGiver, out int gRoll) ? gRoll.ToString() : "-";
                                 string rRollStr = this.plugin.GameState.CurrentRoundRolls.TryGetValue(cReceiver, out int rRoll) ? rRoll.ToString() : "-";
@@ -569,36 +570,28 @@ public class MainWindow : Window, IDisposable
 
                 // Fetch vicinity players dynamically (available for both recorder and edit popup)
                 var vicinityPlayers = new List<string>();
-                char[] separators = new char[] { '@', '¤', '(', '[', '<' };
                 foreach (var obj in Plugin.ObjectTable)
                 {
-                    if (obj != null && obj is Dalamud.Game.ClientState.Objects.SubKinds.IPlayerCharacter)
+                    if (obj != null && obj is Dalamud.Game.ClientState.Objects.SubKinds.IPlayerCharacter playerChar)
                     {
-                        var name = obj.Name.TextValue;
-                        foreach (var sep in separators)
-                        {
-                            if (name.Contains(sep))
-                            {
-                                name = name.Split(sep)[0].Trim();
-                            }
-                        }
-                        if (!vicinityPlayers.Contains(name))
-                            vicinityPlayers.Add(name);
+                        var name = playerChar.Name.TextValue;
+                        var world = playerChar.HomeWorld.Value.Name.ToString();
+                        var fullName = string.IsNullOrEmpty(world) ? name : $"{name}@{world}";
+                        fullName = Plugin.NormalizePlayerName(fullName, "");
+                        if (!vicinityPlayers.Contains(fullName))
+                            vicinityPlayers.Add(fullName);
                     }
                 }
-                var localPlayer = Plugin.ObjectTable[0]?.Name.TextValue;
-                if (!string.IsNullOrEmpty(localPlayer))
+                var localPlayerChar = Plugin.ObjectTable[0] as Dalamud.Game.ClientState.Objects.SubKinds.IPlayerCharacter;
+                if (localPlayerChar != null)
                 {
-                    foreach (var sep in separators)
+                    var name = localPlayerChar.Name.TextValue;
+                    var world = localPlayerChar.HomeWorld.Value.Name.ToString();
+                    var fullName = string.IsNullOrEmpty(world) ? name : $"{name}@{world}";
+                    fullName = Plugin.NormalizePlayerName(fullName, "");
+                    if (!vicinityPlayers.Contains(fullName))
                     {
-                        if (localPlayer.Contains(sep))
-                        {
-                            localPlayer = localPlayer.Split(sep)[0].Trim();
-                        }
-                    }
-                    if (!vicinityPlayers.Contains(localPlayer))
-                    {
-                        vicinityPlayers.Add(localPlayer);
+                        vicinityPlayers.Add(fullName);
                     }
                 }
                 vicinityPlayers.Sort();
@@ -663,17 +656,17 @@ public class MainWindow : Window, IDisposable
                                     ImGui.BeginGroup();
                                     ImGui.TextColored(new Vector4(0.6f, 0.6f, 0.6f, 1f), $"{i + 1}.");
                                     ImGui.SameLine();
-                                    ImGui.Text(turn.Giver);
+                                    ImGui.Text(Plugin.CleanServerName(turn.Giver));
                                     ImGui.SameLine();
                                     ImGui.TextColored(new Vector4(0.5f, 1f, 0.5f, 1f), "→");
                                     ImGui.SameLine();
                                     if (i == turnLog.Count - 1)
                                     {
-                                        ImGui.TextColored(new Vector4(1.0f, 0.85f, 0.0f, 1.0f), turn.Receiver);
+                                        ImGui.TextColored(new Vector4(1.0f, 0.85f, 0.0f, 1.0f), Plugin.CleanServerName(turn.Receiver));
                                     }
                                     else
                                     {
-                                        ImGui.Text(turn.Receiver);
+                                        ImGui.Text(Plugin.CleanServerName(turn.Receiver));
                                     }
                                     
                                     if (this.plugin.Configuration.SeparateBalancingTracking)
@@ -714,11 +707,11 @@ public class MainWindow : Window, IDisposable
 
                     ImGui.Text("Giver (Who asks):");
                     ImGui.SetNextItemWidth(-1);
-                    if (ImGui.BeginCombo("##TurnGiverCombo", !string.IsNullOrEmpty(turnGiverName) ? turnGiverName : "Select Giver..."))
+                    if (ImGui.BeginCombo("##TurnGiverCombo", !string.IsNullOrEmpty(turnGiverName) ? Plugin.CleanServerName(turnGiverName) : "Select Giver..."))
                     {
                         foreach (var name in vicinityPlayers)
                         {
-                            if (ImGui.Selectable(name, turnGiverName == name))
+                            if (ImGui.Selectable(Plugin.CleanServerName(name), turnGiverName == name))
                                 turnGiverName = name;
                         }
                         ImGui.EndCombo();
@@ -726,11 +719,11 @@ public class MainWindow : Window, IDisposable
 
                     ImGui.Text("Receiver (Who answers):");
                     ImGui.SetNextItemWidth(-1);
-                    if (ImGui.BeginCombo("##TurnReceiverCombo", !string.IsNullOrEmpty(turnReceiverName) ? turnReceiverName : "Select Receiver..."))
+                    if (ImGui.BeginCombo("##TurnReceiverCombo", !string.IsNullOrEmpty(turnReceiverName) ? Plugin.CleanServerName(turnReceiverName) : "Select Receiver..."))
                     {
                         foreach (var name in vicinityPlayers)
                         {
-                            if (ImGui.Selectable(name, turnReceiverName == name))
+                            if (ImGui.Selectable(Plugin.CleanServerName(name), turnReceiverName == name))
                                 turnReceiverName = name;
                         }
                         ImGui.EndCombo();
@@ -861,11 +854,11 @@ public class MainWindow : Window, IDisposable
 
                     ImGui.Text("Giver (Who asks):");
                     ImGui.SetNextItemWidth(250f);
-                    if (ImGui.BeginCombo("##EditGiverCombo", !string.IsNullOrEmpty(editGiverName) ? editGiverName : "Select Giver..."))
+                    if (ImGui.BeginCombo("##EditGiverCombo", !string.IsNullOrEmpty(editGiverName) ? Plugin.CleanServerName(editGiverName) : "Select Giver..."))
                     {
                         foreach (var name in editPlayersList)
                         {
-                            if (ImGui.Selectable(name, editGiverName == name))
+                            if (ImGui.Selectable(Plugin.CleanServerName(name), editGiverName == name))
                                 editGiverName = name;
                         }
                         ImGui.EndCombo();
@@ -873,11 +866,11 @@ public class MainWindow : Window, IDisposable
 
                     ImGui.Text("Receiver (Who answers):");
                     ImGui.SetNextItemWidth(250f);
-                    if (ImGui.BeginCombo("##EditReceiverCombo", !string.IsNullOrEmpty(editReceiverName) ? editReceiverName : "Select Receiver..."))
+                    if (ImGui.BeginCombo("##EditReceiverCombo", !string.IsNullOrEmpty(editReceiverName) ? Plugin.CleanServerName(editReceiverName) : "Select Receiver..."))
                     {
                         foreach (var name in editPlayersList)
                         {
-                            if (ImGui.Selectable(name, editReceiverName == name))
+                            if (ImGui.Selectable(Plugin.CleanServerName(name), editReceiverName == name))
                                 editReceiverName = name;
                         }
                         ImGui.EndCombo();
@@ -1077,7 +1070,7 @@ public class MainWindow : Window, IDisposable
                         }
                         
                         ImGui.TableNextColumn(); 
-                        ImGui.Text(player.Name);
+                        ImGui.Text(Plugin.CleanServerName(player.Name));
                         if (ImGui.IsItemHovered())
                         {
                             ImGui.SetTooltip("Right-click to remove");
@@ -1183,20 +1176,16 @@ public class MainWindow : Window, IDisposable
                     // ObjectTable is only iterated when the dropdown is actively open, saving resources.
                     foreach (var obj in Plugin.ObjectTable)
                     {
-                        if (obj != null && obj is Dalamud.Game.ClientState.Objects.SubKinds.IPlayerCharacter)
+                        if (obj != null && obj is Dalamud.Game.ClientState.Objects.SubKinds.IPlayerCharacter playerChar)
                         {
-                            var name = obj.Name.TextValue;
-                            char[] separators = new char[] { '@', '¤', '(', '[', '<' };
-                            foreach (var sep in separators)
+                            var name = playerChar.Name.TextValue;
+                            var world = playerChar.HomeWorld.Value.Name.ToString();
+                            var fullName = string.IsNullOrEmpty(world) ? name : $"{name}@{world}";
+                            fullName = Plugin.NormalizePlayerName(fullName, "");
+                            
+                            if (!this.plugin.GameState.Players.ContainsKey(fullName) && ImGui.Selectable(Plugin.CleanServerName(fullName)))
                             {
-                                if (name.Contains(sep))
-                                {
-                                    name = name.Split(sep)[0].Trim();
-                                }
-                            }
-                            if (!this.plugin.GameState.Players.ContainsKey(name) && ImGui.Selectable(name))
-                            {
-                                this.plugin.GameState.GetOrCreatePlayer(name);
+                                this.plugin.GameState.GetOrCreatePlayer(fullName);
                                 this.plugin.Configuration.Save();
                             }
                         }
@@ -1219,20 +1208,16 @@ public class MainWindow : Window, IDisposable
                     {
                         foreach (var obj in Plugin.ObjectTable)
                         {
-                            if (obj != null && obj is Dalamud.Game.ClientState.Objects.SubKinds.IPlayerCharacter)
+                            if (obj != null && obj is Dalamud.Game.ClientState.Objects.SubKinds.IPlayerCharacter playerChar)
                             {
-                                var name = obj.Name.TextValue;
-                                char[] separators = new char[] { '@', '¤', '(', '[', '<' };
-                                foreach (var sep in separators)
+                                var name = playerChar.Name.TextValue;
+                                var world = playerChar.HomeWorld.Value.Name.ToString();
+                                var fullName = string.IsNullOrEmpty(world) ? name : $"{name}@{world}";
+                                fullName = Plugin.NormalizePlayerName(fullName, "");
+                                
+                                if (!this.plugin.GameState.Players.ContainsKey(fullName))
                                 {
-                                    if (name.Contains(sep))
-                                    {
-                                        name = name.Split(sep)[0].Trim();
-                                    }
-                                }
-                                if (!this.plugin.GameState.Players.ContainsKey(name))
-                                {
-                                    this.plugin.GameState.GetOrCreatePlayer(name);
+                                    this.plugin.GameState.GetOrCreatePlayer(fullName);
                                 }
                             }
                         }
@@ -1264,7 +1249,7 @@ public class MainWindow : Window, IDisposable
                 bool popupRemovePlayer = true;
                 if (ImGui.BeginPopupModal("RemovePlayerConfirm", ref popupRemovePlayer, ImGuiWindowFlags.AlwaysAutoResize))
                 {
-                    ImGui.Text($"Are you sure you want to remove {playerToRemove}?");
+                    ImGui.Text($"Are you sure you want to remove {Plugin.CleanServerName(playerToRemove)}?");
                     ImGui.Separator();
                     if (ImGui.Button("Yes", new Vector2(120, 0)))
                     {
