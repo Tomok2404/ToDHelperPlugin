@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.0.10] - 2026-07-11
+
+### Fixed
+- **Server Name Suffix Stripping**: Expanded server suffix cleaning to handle cross-world players whose names appear with different suffixes in chat logs and player lists (supporting `@`, `¤`, `(`, `[`, and `<` format splits).
+- **Database Migration**: Added automated startup migration to clean any legacy player names and turn history records already stored with server suffixes in the user config file.
+- **Turns Tab Vicinity Clean**: Cleaned server name suffixes from vicinity lists in the Turns tab to ensure matches align correctly with database stats.
+
+---
+
 ## [0.0.0.9] - 2026-07-11
 
 ### Added

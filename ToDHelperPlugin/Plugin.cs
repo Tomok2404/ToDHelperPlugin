@@ -40,7 +40,38 @@ public sealed class Plugin : IDalamudPlugin
     public Plugin()
     {
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
+
+        // Migrate any player names in SavedPlayers that contain server suffixes
+        var migratedPlayers = new System.Collections.Generic.Dictionary<string, Data.PlayerStats>();
+        char[] separators = new char[] { '@', '¤', '(', '[', '<' };
+        foreach (var kvp in Configuration.SavedPlayers)
+        {
+            var cleanKey = kvp.Key;
+            foreach (var sep in separators)
+            {
+                if (cleanKey.Contains(sep))
+                {
+                    cleanKey = cleanKey.Split(sep)[0].Trim();
+                }
+            }
+            kvp.Value.Name = cleanKey;
+            migratedPlayers[cleanKey] = kvp.Value;
+        }
+        Configuration.SavedPlayers = migratedPlayers;
         GameState.Players = Configuration.SavedPlayers;
+
+        foreach (var turn in Configuration.SavedTurnLog)
+        {
+            var cleanGiver = turn.Giver;
+            var cleanReceiver = turn.Receiver;
+            foreach (var sep in separators)
+            {
+                if (cleanGiver.Contains(sep)) cleanGiver = cleanGiver.Split(sep)[0].Trim();
+                if (cleanReceiver.Contains(sep)) cleanReceiver = cleanReceiver.Split(sep)[0].Trim();
+            }
+            turn.Giver = cleanGiver;
+            turn.Receiver = cleanReceiver;
+        }
         GameState.TurnLog = Configuration.SavedTurnLog;
         InspirationManager = new InspirationManager(PluginInterface.ConfigDirectory.FullName);
 
@@ -163,10 +194,14 @@ public sealed class Plugin : IDalamudPlugin
                 playerName = ObjectTable.LocalPlayer?.Name.TextValue ?? ObjectTable[0]?.Name.TextValue ?? "You";
             }
 
-            // Hide the server behind the name if present (e.g. "Player Name@Server" -> "Player Name")
-            if (playerName.Contains("@"))
+            // Hide the server behind the name if present (e.g. "Player Name@Server" or "Player Name¤Server")
+            char[] separators = new char[] { '@', '¤', '(', '[', '<' };
+            foreach (var sep in separators)
             {
-                playerName = playerName.Split('@')[0];
+                if (playerName.Contains(sep))
+                {
+                    playerName = playerName.Split(sep)[0].Trim();
+                }
             }
 
             // Fallback: If playerName resolved to "You", try to get the local player's actual name
@@ -176,9 +211,12 @@ public sealed class Plugin : IDalamudPlugin
                 if (!string.IsNullOrEmpty(localName))
                 {
                     playerName = localName;
-                    if (playerName.Contains("@"))
+                    foreach (var sep in separators)
                     {
-                        playerName = playerName.Split('@')[0];
+                        if (playerName.Contains(sep))
+                        {
+                            playerName = playerName.Split(sep)[0].Trim();
+                        }
                     }
                 }
             }

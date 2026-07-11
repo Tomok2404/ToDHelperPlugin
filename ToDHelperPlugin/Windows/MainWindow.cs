@@ -569,19 +569,37 @@ public class MainWindow : Window, IDisposable
 
                 // Fetch vicinity players dynamically (available for both recorder and edit popup)
                 var vicinityPlayers = new List<string>();
+                char[] separators = new char[] { '@', '¤', '(', '[', '<' };
                 foreach (var obj in Plugin.ObjectTable)
                 {
                     if (obj != null && obj is Dalamud.Game.ClientState.Objects.SubKinds.IPlayerCharacter)
                     {
                         var name = obj.Name.TextValue;
+                        foreach (var sep in separators)
+                        {
+                            if (name.Contains(sep))
+                            {
+                                name = name.Split(sep)[0].Trim();
+                            }
+                        }
                         if (!vicinityPlayers.Contains(name))
                             vicinityPlayers.Add(name);
                     }
                 }
                 var localPlayer = Plugin.ObjectTable[0]?.Name.TextValue;
-                if (!string.IsNullOrEmpty(localPlayer) && !vicinityPlayers.Contains(localPlayer))
+                if (!string.IsNullOrEmpty(localPlayer))
                 {
-                    vicinityPlayers.Add(localPlayer);
+                    foreach (var sep in separators)
+                    {
+                        if (localPlayer.Contains(sep))
+                        {
+                            localPlayer = localPlayer.Split(sep)[0].Trim();
+                        }
+                    }
+                    if (!vicinityPlayers.Contains(localPlayer))
+                    {
+                        vicinityPlayers.Add(localPlayer);
+                    }
                 }
                 vicinityPlayers.Sort();
 
@@ -1168,9 +1186,13 @@ public class MainWindow : Window, IDisposable
                         if (obj != null && obj is Dalamud.Game.ClientState.Objects.SubKinds.IPlayerCharacter)
                         {
                             var name = obj.Name.TextValue;
-                            if (name.Contains("@"))
+                            char[] separators = new char[] { '@', '¤', '(', '[', '<' };
+                            foreach (var sep in separators)
                             {
-                                name = name.Split('@')[0];
+                                if (name.Contains(sep))
+                                {
+                                    name = name.Split(sep)[0].Trim();
+                                }
                             }
                             if (!this.plugin.GameState.Players.ContainsKey(name) && ImGui.Selectable(name))
                             {
@@ -1200,9 +1222,13 @@ public class MainWindow : Window, IDisposable
                             if (obj != null && obj is Dalamud.Game.ClientState.Objects.SubKinds.IPlayerCharacter)
                             {
                                 var name = obj.Name.TextValue;
-                                if (name.Contains("@"))
+                                char[] separators = new char[] { '@', '¤', '(', '[', '<' };
+                                foreach (var sep in separators)
                                 {
-                                    name = name.Split('@')[0];
+                                    if (name.Contains(sep))
+                                    {
+                                        name = name.Split(sep)[0].Trim();
+                                    }
                                 }
                                 if (!this.plugin.GameState.Players.ContainsKey(name))
                                 {
