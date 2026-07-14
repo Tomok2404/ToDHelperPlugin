@@ -252,12 +252,12 @@ public sealed class Plugin : IDalamudPlugin
         if (remaining <= 0)
         {
             // End Round
-            GameState.EndRound();
+            var roundNum = GameState.EndRound();
             Configuration.Save();
             if (Configuration.EnableRoundClosedMsg && Configuration.RoundClosedMessages.Count > 0)
             {
                 var msg = Configuration.RoundClosedMessages[new System.Random().Next(Configuration.RoundClosedMessages.Count)];
-                msg = msg.Replace("[RoundNumber]", GameState.RoundsPlayed.ToString());
+                msg = msg.Replace("[RoundNumber]", roundNum.ToString());
                 ChatSender.SendMessage(Configuration.ChatPrefix.Trim() + " " + msg);
             }
         }

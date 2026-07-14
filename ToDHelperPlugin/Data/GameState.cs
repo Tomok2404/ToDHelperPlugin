@@ -80,10 +80,12 @@ public class GameState
         RoundEndTime = DateTime.Now.AddSeconds(durationSeconds);
     }
 
-    public void EndRound()
+    public int EndRound()
     {
+        int roundNum = RoundsPlayed;
         IsRoundActive = false;
         NeedsAutoSelection = true;
+        return roundNum;
     }
 
     public void RecordTurn(string giver, string receiver, bool isDare)

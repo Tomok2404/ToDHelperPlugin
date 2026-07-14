@@ -120,13 +120,13 @@ public class MainWindow : Window, IDisposable
                 {
                     if (ImGui.Button("End Round Early", new Vector2(-1, 30)))
                     {
-                        this.plugin.GameState.EndRound();
+                        var roundNum = this.plugin.GameState.EndRound();
                         this.plugin.Configuration.Save();
                         
                         if (this.plugin.Configuration.EnableRoundClosedMsg && this.plugin.Configuration.RoundClosedMessages.Count > 0)
                         {
                             var msg = this.plugin.Configuration.RoundClosedMessages[new System.Random().Next(this.plugin.Configuration.RoundClosedMessages.Count)];
-                            msg = msg.Replace("[RoundNumber]", this.plugin.GameState.RoundsPlayed.ToString());
+                            msg = msg.Replace("[RoundNumber]", roundNum.ToString());
                             ChatSender.SendMessage(this.plugin.Configuration.ChatPrefix.Trim() + " " + msg);
                         }
                     }
