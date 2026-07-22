@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.1.0] - 2026-07-23
+
+### Fixed
+- **Round Number Close Message**: Fixed the round close chat announcement message to use the correct round number (queries the index before marking the round inactive).
+
+---
+
 ## [0.0.0.11] - 2026-07-11
 
 ### Fixed
